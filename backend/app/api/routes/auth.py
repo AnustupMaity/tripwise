@@ -167,7 +167,7 @@ def google_callback(payload: GoogleLoginRequest) -> dict[str, str | bool]:
 
 
 @router.post("/session/validate")
-def validate_session(payload: SessionValidationRequest) -> dict[str, str | bool]:
+def validate_session(payload: SessionValidationRequest) -> dict[str, str | bool | None]:
     try:
         return auth_service.validate_session(token=payload.session_token)
     except ValueError as exc:
