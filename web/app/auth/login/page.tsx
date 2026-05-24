@@ -36,6 +36,7 @@ export default function LoginPage() {
     if (!GOOGLE_CLIENT_ID) {
       return;
     }
+
     let active = true;
 
     const onGoogleCredential = async (credential: string) => {
