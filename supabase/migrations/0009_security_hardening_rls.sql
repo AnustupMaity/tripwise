@@ -4,19 +4,7 @@
 -- policies do not block the app. They only remove anonymous/authenticated
 -- access through the public API surface.
 
-create or replace function public.rls_auto_enable()
-returns void
-language plpgsql
-security invoker
-as $$
-begin
-    -- Intentionally a no-op: the repo no longer exposes an executable
-    -- SECURITY DEFINER helper through the public schema.
-    return;
-end;
-$$;
-
-revoke execute on function public.rls_auto_enable() from anon, authenticated;
+drop function if exists public.rls_auto_enable();
 
 do $$
 declare
@@ -41,6 +29,7 @@ begin
         'trip_members',
         'trips'
     ] loop
+        execute format('drop policy if exists deny_public_access on public.%I', table_name);
         execute format(
             'create policy deny_public_access on public.%I for all to anon, authenticated using (false) with check (false)',
             table_name
