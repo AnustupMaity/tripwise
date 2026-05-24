@@ -254,7 +254,10 @@ class AuthService:
                 settings.google_client_id,
             )
         except Exception as exc:  # pragma: no cover
-            raise ValueError("invalid google token") from exc
+            reason = str(exc).strip() or "unknown verification error"
+            raise ValueError(
+                f"invalid google token: {reason}. Check GOOGLE_CLIENT_ID audience match and token freshness."
+            ) from exc
 
         google_sub = str(token_info.get("sub") or "").strip()
         if not google_sub:
