@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
+import { resolveApiBase } from "../../lib/api-base";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
+const API_BASE = resolveApiBase();
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {

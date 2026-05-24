@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { resolveApiBase } from "../../lib/api-base";
 
 type Trip = {
   trip_id: string;
@@ -24,7 +25,7 @@ type SessionProfile = {
   email?: string;
 };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
+const API_BASE = resolveApiBase();
 
 function getSessionToken(): string {
   if (typeof window === "undefined") {
@@ -129,7 +130,7 @@ export default function PastTripsPage() {
           <p className="empty-copy">
             Identified as: <strong>{sessionProfile.name || sessionProfile.nickname || "TripWise User"}</strong>
           </p>
-          <p className="empty-copy" style={{ marginBottom: "1rem" }}>Contact: {actorIdentifier || "-"}</p>
+          <p className="empty-copy">Contact: {actorIdentifier || "-"}</p>
           <button className="tw-btn" onClick={loadPastTrips} disabled={loading}>
             {loading ? "Decrypting..." : "Reveal Archives"}
           </button>
