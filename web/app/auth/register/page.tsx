@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { apiRequest } from "../../lib/api";
+import { ensureGoogleInitialized, renderGoogleButton, setGoogleCredentialHandler } from "../../lib/google-gsi";
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
@@ -36,50 +37,49 @@ export default function RegisterPage() {
     if (!GOOGLE_CLIENT_ID) {
       return;
     }
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
-      const w = window as unknown as {
-        google?: {
-          accounts: {
-            id: {
-              initialize: (cfg: { client_id: string; callback: (resp: { credential: string }) => void }) => void;
-              renderButton: (el: HTMLElement, opts: Record<string, string>) => void;
-            };
-          };
-        };
-      };
-      if (!w.google) {
+    let active = true;
+
+    const onGoogleCredential = async (credential: string) => {
+      if (!active) {
         return;
       }
-      w.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: async (resp) => {
-          try {
-            setLoading(true);
-            setError("");
-            const data = await apiRequest<{ sessionToken: string; userId: string }>("/auth/google/callback", {
-              method: "POST",
-              body: JSON.stringify({ id_token: resp.credential }),
-            });
-            storeSession(data.sessionToken, data.userId);
-            router.push("/dashboard");
-          } catch (requestError) {
-            setError(requestError instanceof Error ? requestError.message : "Google signup failed.");
-          } finally {
-            setLoading(false);
-          }
-        },
-      });
-      const buttonEl = document.getElementById("google-register-btn");
-      if (buttonEl) {
-        w.google.accounts.id.renderButton(buttonEl, { theme: "outline", size: "large", text: "signup_with" });
+      try {
+        setLoading(true);
+        setError("");
+        const data = await apiRequest<{ sessionToken: string; userId: string }>("/auth/google/callback", {
+          method: "POST",
+          body: JSON.stringify({ id_token: credential }),
+        });
+        storeSession(data.sessionToken, data.userId);
+        router.push("/dashboard");
+      } catch (requestError) {
+        setError(requestError instanceof Error ? requestError.message : "Google signup failed.");
+      } finally {
+        setLoading(false);
       }
     };
-    document.body.appendChild(script);
-    return () => script.remove();
+
+    setGoogleCredentialHandler(onGoogleCredential);
+    void ensureGoogleInitialized(GOOGLE_CLIENT_ID)
+      .then(() => {
+        if (!active) {
+          return;
+        }
+        renderGoogleButton("google-register-btn", { theme: "outline", size: "large", text: "signup_with" });
+      })
+      .catch((initError) => {
+        try {
+          const message = initError instanceof Error ? initError.message : "Failed to initialize Google Sign-In.";
+          setError(message);
+        } catch {
+          setError("Failed to initialize Google Sign-In.");
+        }
+      });
+
+    return () => {
+      active = false;
+      setGoogleCredentialHandler(null);
+    };
   }, []);
 
   async function requestOtp(event: FormEvent<HTMLFormElement>) {
