@@ -52,6 +52,7 @@ class Settings:
     jwt_secret: str | None
     auth_expose_otp_in_response: bool
     cors_allowed_origins: list[str]
+    cors_allowed_origin_regex: str | None
     request_audit_log_enabled: bool
     api_rate_limit_enabled: bool
     api_rate_limit_per_minute: int
@@ -84,6 +85,7 @@ settings = Settings(
         ).split(",")
         if o.strip()
     ],
+    cors_allowed_origin_regex=os.getenv("CORS_ALLOWED_ORIGIN_REGEX", r"https://.*\\.vercel\\.app"),
     request_audit_log_enabled=os.getenv("REQUEST_AUDIT_LOG_ENABLED", "true").strip().lower() in {"1", "true", "yes"},
     api_rate_limit_enabled=os.getenv("API_RATE_LIMIT_ENABLED", "true").strip().lower() in {"1", "true", "yes"},
     api_rate_limit_per_minute=int(os.getenv("API_RATE_LIMIT_PER_MINUTE", "180")),

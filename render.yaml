@@ -20,6 +20,8 @@ services:
         sync: false
       - key: CORS_ALLOWED_ORIGINS
         value: https://tripwise-liard.vercel.app,http://localhost:3000,http://127.0.0.1:3000
+      - key: CORS_ALLOWED_ORIGIN_REGEX
+        value: https://.*\.vercel\.app
       - key: SUPABASE_DB_URL
         sync: false
       - key: SUPABASE_URL
