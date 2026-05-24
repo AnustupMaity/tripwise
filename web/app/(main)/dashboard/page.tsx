@@ -88,6 +88,9 @@ type SessionProfile = {
   name?: string;
   nickname?: string;
   email?: string;
+  phone?: string;
+  upiId?: string | null;
+  upiNumber?: string | null;
 };
 
 type CreateMode = "self" | "dynamic";
@@ -182,6 +185,16 @@ export default function DashboardPage() {
   const [settlementRows, setSettlementRows] = useState<SettlementRow[]>([]);
   const [reports, setReports] = useState<ReportItem[]>([]);
   const [notifications, setNotifications] = useState<InAppNotification[]>([]);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileName, setProfileName] = useState("");
+  const [profileNickname, setProfileNickname] = useState("");
+  const [profileEmail, setProfileEmail] = useState("");
+  const [profilePhone, setProfilePhone] = useState("");
+  const [profileUpiId, setProfileUpiId] = useState("");
+  const [profileUpiNumber, setProfileUpiNumber] = useState("");
+  const [profileEmailOtp, setProfileEmailOtp] = useState("");
+  const [profileEmailOtpRequested, setProfileEmailOtpRequested] = useState(false);
 
   const [expenseModalOpen, setExpenseModalOpen] = useState(false);
   const [expenseDescription, setExpenseDescription] = useState("");
@@ -211,6 +224,85 @@ export default function DashboardPage() {
   const selectedTrip = useMemo(() => trips.find((t) => t.trip_id === selectedTripId) ?? null, [trips, selectedTripId]);
   const hasTripSelection = Boolean(selectedTripId && selectedTrip);
   const currentCurrency = selectedTripId ? (tripCurrencies[selectedTripId] ?? "INR") : "INR";
+
+  function openProfileEditor() {
+    setProfileName(sessionProfile.name ?? "");
+    setProfileNickname(sessionProfile.nickname ?? "");
+    setProfileEmail(sessionProfile.email ?? "");
+    setProfilePhone(sessionProfile.phone ?? "");
+    setProfileUpiId(sessionProfile.upiId ?? "");
+    setProfileUpiNumber(sessionProfile.upiNumber ?? "");
+    setProfileEmailOtp("");
+    setProfileEmailOtpRequested(false);
+    setProfileModalOpen(true);
+    setError("");
+  }
+
+  function closeProfileEditor() {
+    setProfileModalOpen(false);
+    setProfileEmailOtp("");
+    setProfileEmailOtpRequested(false);
+  }
+
+  async function requestEmailChangeOtp() {
+    try {
+      setProfileSaving(true);
+      setError("");
+      const email = profileEmail.trim();
+      if (!email) {
+        throw new Error("Enter a new email first.");
+      }
+      await fetchJson<{ message?: string; otp?: string }>("/auth/profile/email/request-otp", {
+        method: "POST",
+        body: JSON.stringify({
+          session_token: getSessionToken(),
+          email,
+        }),
+      });
+      setProfileEmailOtpRequested(true);
+      setNotice("Verification code sent to the new email address.");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Failed to send email verification code.");
+    } finally {
+      setProfileSaving(false);
+    }
+  }
+
+  async function saveProfileDetails() {
+    try {
+      setProfileSaving(true);
+      setError("");
+      const data = await fetchJson<SessionProfile & { userId?: string; requiresProfileCompletion?: boolean }>("/auth/profile/complete", {
+        method: "POST",
+        body: JSON.stringify({
+          session_token: getSessionToken(),
+          name: profileName.trim() || null,
+          phone: profilePhone.trim(),
+          nickname: profileNickname.trim() || null,
+          email: profileEmail.trim() || null,
+          email_otp: profileEmailOtp.trim() || null,
+          upi_id: profileUpiId.trim() || null,
+          upi_number: profileUpiNumber.trim() || null,
+        }),
+      });
+      setSessionProfile((current) => ({
+        ...current,
+        name: data.name ?? profileName.trim(),
+        nickname: data.nickname ?? profileNickname.trim(),
+        email: data.email ?? profileEmail.trim(),
+        phone: data.phone ?? profilePhone.trim(),
+        upiId: data.upiId ?? (profileUpiId.trim() || undefined),
+        upiNumber: data.upiNumber ?? (profileUpiNumber.trim() || undefined),
+      }));
+      setActorIdentifier(data.email ?? profileEmail.trim());
+      setNotice("Profile updated successfully.");
+      closeProfileEditor();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Failed to update profile.");
+    } finally {
+      setProfileSaving(false);
+    }
+  }
 
   useEffect(() => {
     async function hydrateActorIdentifier() {
@@ -956,7 +1048,14 @@ export default function DashboardPage() {
                 Logged in as: <strong>{sessionProfile.name || sessionProfile.nickname || "TripWise User"}</strong>
               </p>
               <p className="empty-copy">Email: {actorIdentifier || "-"}</p>
-              <button className="tw-btn" disabled={loading} onClick={() => void loadTrips()}>Load Trips</button>
+              <div className="row-actions top-gap">
+                <button className="tw-btn tw-btn-muted" disabled={loading} onClick={() => void loadTrips()}>
+                  Load Trips
+                </button>
+                <button className="tw-btn" type="button" onClick={openProfileEditor} disabled={loading}>
+                  Edit Details
+                </button>
+              </div>
             </article>
 
             <article className="widget-card">
@@ -1275,6 +1374,79 @@ export default function DashboardPage() {
         {error ? <p className="flash flash-error">{error}</p> : null}
         {notice ? <p className="flash flash-ok">{notice}</p> : null}
       </section>
+
+      {profileModalOpen ? (
+        <div className="expense-modal-backdrop" role="presentation" onClick={closeProfileEditor}>
+          <section className="expense-modal" role="dialog" aria-modal="true" aria-labelledby="profile-editor-title" onClick={(event) => event.stopPropagation()}>
+            <h3 id="profile-editor-title">Edit Details</h3>
+            <p className="empty-copy">
+              Update your profile information here. If you change your email, TripWise will send a verification code to the new address before saving.
+            </p>
+            <form
+              className="stack-form top-gap"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void saveProfileDetails();
+              }}
+            >
+              <label className="field-label" htmlFor="profile-name">Full name</label>
+              <input id="profile-name" className="tw-input" value={profileName} onChange={(event) => setProfileName(event.target.value)} placeholder="Full name" />
+
+              <label className="field-label" htmlFor="profile-nickname">Nickname</label>
+              <input id="profile-nickname" className="tw-input" value={profileNickname} onChange={(event) => setProfileNickname(event.target.value)} placeholder="Nickname" />
+
+              <label className="field-label" htmlFor="profile-email">Email</label>
+              <input id="profile-email" className="tw-input" type="email" value={profileEmail} onChange={(event) => setProfileEmail(event.target.value)} placeholder="Email" />
+              <p className="field-help">Change the email, then send an OTP to the new address before saving.</p>
+
+              <label className="field-label" htmlFor="profile-phone">Phone</label>
+              <input id="profile-phone" className="tw-input" type="tel" value={profilePhone} onChange={(event) => setProfilePhone(event.target.value)} placeholder="Phone" />
+
+              <div className="inline-grid">
+                <div>
+                  <label className="field-label" htmlFor="profile-upi-id">UPI ID</label>
+                  <input id="profile-upi-id" className="tw-input" value={profileUpiId} onChange={(event) => setProfileUpiId(event.target.value)} placeholder="UPI ID" />
+                </div>
+                <div>
+                  <label className="field-label" htmlFor="profile-upi-number">UPI Number</label>
+                  <input id="profile-upi-number" className="tw-input" value={profileUpiNumber} onChange={(event) => setProfileUpiNumber(event.target.value)} placeholder="UPI Number" />
+                </div>
+              </div>
+
+              {profileEmail.trim() && profileEmail.trim() !== (sessionProfile.email ?? "").trim() ? (
+                <>
+                  <label className="field-label" htmlFor="profile-email-otp">Email OTP</label>
+                  <input
+                    id="profile-email-otp"
+                    className="tw-input"
+                    value={profileEmailOtp}
+                    onChange={(event) => setProfileEmailOtp(event.target.value)}
+                    placeholder="Enter email OTP"
+                    maxLength={6}
+                    inputMode="numeric"
+                  />
+                  <p className="field-help">Request a verification code before saving the new email.</p>
+                </>
+              ) : null}
+
+              <div className="expense-modal-footer">
+                <button className="tw-btn tw-btn-muted" type="button" onClick={closeProfileEditor} disabled={profileSaving}>
+                  Cancel
+                </button>
+                {profileEmail.trim() && profileEmail.trim() !== (sessionProfile.email ?? "").trim() ? (
+                  <button className="tw-btn tw-btn-muted" type="button" onClick={() => void requestEmailChangeOtp()} disabled={profileSaving}>
+                    Send Email OTP
+                  </button>
+                ) : null}
+                <button className="tw-btn" type="submit" disabled={profileSaving || !profilePhone.trim()}>
+                  {profileSaving ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+              {profileEmailOtpRequested ? <p className="empty-copy">Code sent to the new email address.</p> : null}
+            </form>
+          </section>
+        </div>
+      ) : null}
 
       {expenseModalOpen ? (
         <div className="expense-modal-backdrop" role="dialog" aria-modal="true" aria-label="Advanced expense composer">

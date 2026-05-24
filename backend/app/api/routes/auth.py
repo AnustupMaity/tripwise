@@ -56,10 +56,18 @@ class SessionValidationRequest(BaseModel):
 
 class CompleteProfileRequest(BaseModel):
     session_token: str
+    name: str | None = None
     phone: str
     nickname: str | None = None
+    email: EmailStr | None = None
+    email_otp: str | None = None
     upi_id: str | None = None
     upi_number: str | None = None
+
+
+class ProfileEmailOtpRequest(BaseModel):
+    session_token: str
+    email: EmailStr
 
 
 class IdentifierStatusRequest(BaseModel):
@@ -169,12 +177,26 @@ def validate_session(payload: SessionValidationRequest) -> dict[str, str | bool]
 @router.post("/profile/complete")
 def complete_profile(payload: CompleteProfileRequest) -> dict[str, str | bool]:
     try:
-        return auth_service.complete_profile(
+        return auth_service.update_profile_details(
             session_token=payload.session_token,
+            name=payload.name,
             phone=payload.phone,
             upi_id=payload.upi_id,
             upi_number=payload.upi_number,
             nickname=payload.nickname,
+            email=str(payload.email) if payload.email else None,
+            email_otp=payload.email_otp,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/profile/email/request-otp")
+def request_profile_email_change_otp(payload: ProfileEmailOtpRequest) -> dict[str, str]:
+    try:
+        return auth_service.request_profile_email_change_otp(
+            session_token=payload.session_token,
+            email=str(payload.email),
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

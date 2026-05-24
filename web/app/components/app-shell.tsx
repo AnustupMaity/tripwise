@@ -21,6 +21,13 @@ export function AppShell({ children }: PropsWithChildren) {
   const [authReady, setAuthReady] = useState(false);
   const hasValidatedForMain = useRef(false);
 
+  function logout() {
+    localStorage.removeItem("tripwise_session_token");
+    localStorage.removeItem("tripwise_user_id");
+    localStorage.removeItem("tripwise_trip_currencies");
+    router.push("/auth/login");
+  }
+
   useEffect(() => {
     if (hideShell) {
       setAuthReady(true);
@@ -117,6 +124,11 @@ export function AppShell({ children }: PropsWithChildren) {
             );
           })}
         </nav>
+        <div className="side-footer">
+          <button className="tw-btn tw-btn-muted" type="button" onClick={logout}>
+            Logout
+          </button>
+        </div>
       </aside>
       <div className="app-main-content">{children}</div>
     </div>

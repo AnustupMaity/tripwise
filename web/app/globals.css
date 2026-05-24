@@ -60,6 +60,13 @@ body {
   display: grid;
   gap: 0.4rem;
 }
+.side-footer {
+  margin-top: auto;
+  padding-top: 1rem;
+}
+.side-footer .tw-btn {
+  width: 100%;
+}
 
 .side-link {
   text-decoration: none;
