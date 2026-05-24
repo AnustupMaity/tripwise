@@ -33,6 +33,13 @@ def _first_env(*keys: str) -> str | None:
     return None
 
 
+app_env = os.getenv("APP_ENV", "development")
+default_cors_allowed_origins = (
+    "https://tripwise-liard.vercel.app" if app_env == "production" else "http://localhost:3000,http://127.0.0.1:3000"
+)
+default_cors_allowed_origin_regex = None if app_env == "production" else r"https://.*\.vercel\.app"
+
+
 @dataclass(frozen=True)
 class Settings:
     app_env: str
@@ -61,7 +68,7 @@ class Settings:
 
 
 settings = Settings(
-    app_env=os.getenv("APP_ENV", "development"),
+    app_env=app_env,
     supabase_db_url=os.getenv("SUPABASE_DB_URL"),
     use_inmemory_stores=os.getenv("USE_INMEMORY_STORES", "false").strip().lower() in {"1", "true", "yes"},
     app_base_url=os.getenv("APP_BASE_URL", "http://localhost:8000"),
@@ -81,11 +88,11 @@ settings = Settings(
         o.strip()
         for o in os.getenv(
             "CORS_ALLOWED_ORIGINS",
-            "https://tripwise-liard.vercel.app,http://localhost:3000,http://127.0.0.1:3000",
+            default_cors_allowed_origins,
         ).split(",")
         if o.strip()
     ],
-    cors_allowed_origin_regex=os.getenv("CORS_ALLOWED_ORIGIN_REGEX", r"https://.*\\.vercel\\.app"),
+    cors_allowed_origin_regex=os.getenv("CORS_ALLOWED_ORIGIN_REGEX", default_cors_allowed_origin_regex),
     request_audit_log_enabled=os.getenv("REQUEST_AUDIT_LOG_ENABLED", "true").strip().lower() in {"1", "true", "yes"},
     api_rate_limit_enabled=os.getenv("API_RATE_LIMIT_ENABLED", "true").strip().lower() in {"1", "true", "yes"},
     api_rate_limit_per_minute=int(os.getenv("API_RATE_LIMIT_PER_MINUTE", "180")),
