@@ -1,0 +1,36 @@
+{
+  "name": "tripwise-web",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "next dev",
+    "dev:clean": "powershell -NoProfile -Command \"if (Test-Path .next) { Remove-Item -Recurse -Force .next }; if (Test-Path .next-dev) { Remove-Item -Recurse -Force .next-dev }; next dev\"",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
+  },
+  "dependencies": {
+    "next": "14.2.25",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.53.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/user-event": "^14.5.2",
+    "@vitejs/plugin-react": "^4.3.3",
+    "typescript": "5.8.3",
+    "@types/react": "18.3.20",
+    "@types/react-dom": "18.3.7",
+    "@types/node": "22.15.3",
+    "eslint": "8.57.1",
+    "eslint-config-next": "14.2.25",
+    "jsdom": "^26.1.0",
+    "vitest": "^2.1.9"
+  }
+}

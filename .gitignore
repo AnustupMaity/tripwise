@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+.pytest_cache/
+backend/.pytest_cache/
+
+# Node
+node_modules/
+.next/
+.next-dev/
+web/.next/
+web/.next-dev/
+dist/
+web/node_modules/
+web/coverage/
+playwright-report/
+.vercel/
+
+# Environment
+.env
+.env.*
+!.env.example
+backend/.env
+web/.env
+web/.env.local
+web/.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Coverage
+coverage/
+.coverage
+htmlcov/
+
+# Supabase local
+supabase/.temp/
+
+# Runtime artifacts
+backend/generated_reports/

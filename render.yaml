@@ -1,0 +1,46 @@
+services:
+  - type: web
+    name: tripwise-backend
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: python -m pip install -r requirements.txt
+    startCommand: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: AUTH_EXPOSE_OTP_IN_RESPONSE
+        value: "false"
+      - key: USE_INMEMORY_STORES
+        value: "false"
+      - key: APP_BASE_URL
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: SUPABASE_DB_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: BREVO_SENDER_EMAIL
+        sync: false
+      - key: BREVO_SENDER_NAME
+        value: TripWise
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: PUSH_WEBHOOK_URL
+        sync: false
+      - key: NOTIFICATION_RETRY_MAX_ATTEMPTS
+        value: "3"
+      - key: NOTIFICATION_RETRY_BASE_DELAY_SECONDS
+        value: "5"
+      - key: JWT_SECRET
+        sync: false
