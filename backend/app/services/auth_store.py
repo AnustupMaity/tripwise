@@ -135,9 +135,11 @@ class InMemoryAuthStore:
             user = self._users_by_id[user_id]
             user.password_hash = password_hash
 
-    def complete_profile(self, *, user_id: str, phone: str, upi_id: str | None, upi_number: str | None, nickname: str | None) -> UserRecord:
+    def complete_profile(self, *, user_id: str, phone: str, upi_id: str | None, upi_number: str | None, nickname: str | None, name: str | None = None) -> UserRecord:
         with self._lock:
             user = self._users_by_id[user_id]
+            if name is not None:
+                user.name = name
             if phone:
                 existing_user_id = self._users_by_phone.get(phone)
                 if existing_user_id and existing_user_id != user_id:
@@ -152,6 +154,19 @@ class InMemoryAuthStore:
                 user.upi_number = upi_number
             if nickname is not None:
                 user.nickname = nickname
+            return user
+
+    def update_email(self, *, user_id: str, email: str) -> UserRecord:
+        with self._lock:
+            user = self._users_by_id[user_id]
+            existing_user_id = self._users_by_email.get(email)
+            if existing_user_id and existing_user_id != user_id:
+                raise ValueError("email is already registered")
+
+            if user.email in self._users_by_email:
+                del self._users_by_email[user.email]
+            user.email = email
+            self._users_by_email[email] = user_id
             return user
 
     def create_session(self, *, token_hash: str, user_id: str, expires_at: datetime, last_active_at: datetime) -> SessionRecord:
@@ -227,6 +242,14 @@ class InMemoryAuthStore:
     def delete_otp_challenge(self, *, identifier: str, purpose: str) -> None:
         with self._lock:
             self._otp_challenges.pop((identifier, purpose), None)
+
+    def rename_otp_challenge(self, *, old_identifier: str, new_identifier: str, purpose: str) -> None:
+        with self._lock:
+            record = self._otp_challenges.pop((old_identifier, purpose), None)
+            if record is None:
+                return
+            record.identifier = new_identifier
+            self._otp_challenges[(new_identifier, purpose)] = record
 
     def create_reset_token(self, *, token_hash: str, user_id: str, expires_at: datetime, created_at: datetime) -> None:
         with self._lock:
@@ -335,7 +358,7 @@ class PostgresAuthStore:
             cur.execute("update public.profiles set password_hash = %s where id = %s", (password_hash, user_id))
             conn.commit()
 
-    def complete_profile(self, *, user_id: str, phone: str, upi_id: str | None, upi_number: str | None, nickname: str | None) -> UserRecord:
+    def complete_profile(self, *, user_id: str, phone: str, upi_id: str | None, upi_number: str | None, nickname: str | None, name: str | None = None) -> UserRecord:
         with self._conn() as conn, conn.cursor() as cur:
             if phone:
                 cur.execute("select id from public.profiles where phone = %s and id <> %s limit 1", (phone, user_id))
@@ -346,14 +369,29 @@ class PostgresAuthStore:
                 """
                 update public.profiles
                 set
+                    name = coalesce(%s, name),
                     phone = case when %s = '' then phone else %s end,
                     upi_id = %s,
                     upi_number = %s,
                     nickname = coalesce(%s, nickname)
                 where id = %s
                 """,
-                (phone, phone, upi_id, upi_number, nickname, user_id),
+                (name, phone, phone, upi_id, upi_number, nickname, user_id),
             )
+            conn.commit()
+
+        updated = self.find_user_by_id(user_id)
+        if not updated:
+            raise ValueError("user not found")
+        return updated
+
+    def update_email(self, *, user_id: str, email: str) -> UserRecord:
+        with self._conn() as conn, conn.cursor() as cur:
+            cur.execute("select id from public.profiles where email = %s and id <> %s limit 1", (email, user_id))
+            if cur.fetchone():
+                raise ValueError("email is already registered")
+
+            cur.execute("update public.profiles set email = %s where id = %s", (email, user_id))
             conn.commit()
 
         updated = self.find_user_by_id(user_id)
@@ -512,6 +550,14 @@ class PostgresAuthStore:
             cur.execute(
                 "delete from public.auth_otp_challenges where identifier = %s and purpose = %s",
                 (identifier, purpose),
+            )
+            conn.commit()
+
+    def rename_otp_challenge(self, *, old_identifier: str, new_identifier: str, purpose: str) -> None:
+        with self._conn() as conn, conn.cursor() as cur:
+            cur.execute(
+                "update public.auth_otp_challenges set identifier = %s where identifier = %s and purpose = %s",
+                (new_identifier, old_identifier, purpose),
             )
             conn.commit()
 

@@ -331,6 +331,8 @@ class AuthService:
                 "nickname": user.nickname,
                 "email": user.email,
                 "phone": user.phone,
+                "upiId": user.upi_id,
+                "upiNumber": user.upi_number,
                 "expiresAt": session.expires_at.isoformat(),
                 "lastActiveAt": now.isoformat(),
             }
@@ -356,6 +358,90 @@ class AuthService:
             return {
                 "userId": updated_user.user_id,
                 "requiresProfileCompletion": requires_profile_completion,
+                "phone": updated_user.phone,
+                "nickname": updated_user.nickname,
+            }
+
+    def request_profile_email_change_otp(self, *, session_token: str, email: str) -> dict[str, str]:
+        normalized_email = normalize_email(email)
+        now = utc_now()
+
+        with self._lock:
+            token_hash = hash_session_token(session_token)
+            session = self._store.find_session(token_hash=token_hash)
+            if session is None:
+                raise ValueError("invalid session")
+
+            user = self._store.find_user_by_id(session.user_id)
+            if user is None:
+                raise ValueError("user not found for session")
+
+            if normalize_email(user.email) == normalized_email:
+                raise ValueError("new email must be different from current email")
+
+            if self._store.find_user_by_identifier(normalized_email, "email"):
+                raise ValueError("email is already registered")
+
+            self._consume_otp_rate_limit(scope=f"email-change:{normalized_email}", now=now)
+            otp_value, expires_at = self._issue_otp(identifier=normalized_email, purpose="email_change", now=now)
+            notification_service.enqueue_otp(
+                identifier=normalized_email,
+                purpose="email change",
+                otp=otp_value,
+                expires_minutes=OTP_TTL_MINUTES,
+            )
+
+        return build_otp_response(otp_value=otp_value, expires_at=expires_at)
+
+    def update_profile_details(
+        self,
+        *,
+        session_token: str,
+        name: str | None,
+        phone: str,
+        upi_id: str | None,
+        upi_number: str | None,
+        nickname: str | None,
+        email: str | None,
+        email_otp: str | None,
+    ) -> dict[str, str | bool]:
+        normalized_phone = normalize_phone(phone)
+        normalized_email = normalize_email(email) if email else None
+
+        with self._lock:
+            token_hash = hash_session_token(session_token)
+            session = self._store.find_session(token_hash=token_hash)
+            if session is None:
+                raise ValueError("invalid session")
+
+            user = self._store.find_user_by_id(session.user_id)
+            if user is None:
+                raise ValueError("user not found for session")
+
+            if normalized_email and normalized_email != normalize_email(user.email):
+                if not email_otp:
+                    raise ValueError("email verification code is required")
+                self._verify_otp_or_raise(identifier=normalized_email, purpose="email_change", otp=email_otp)
+                updated_user = self._store.update_email(user_id=user.user_id, email=normalized_email)
+                self._store.delete_otp_challenge(identifier=normalized_email, purpose="email_change")
+                self._link_pending_trip_memberships(email=updated_user.email, user_id=updated_user.user_id)
+                user = updated_user
+
+            updated_user = self._store.complete_profile(
+                user_id=user.user_id,
+                phone=normalized_phone,
+                upi_id=upi_id,
+                upi_number=upi_number,
+                nickname=nickname,
+                name=name.strip() if name else None,
+            )
+
+            requires_profile_completion = not bool(updated_user.phone) or not bool(updated_user.upi_id or updated_user.upi_number)
+            return {
+                "userId": updated_user.user_id,
+                "requiresProfileCompletion": requires_profile_completion,
+                "name": updated_user.name,
+                "email": updated_user.email,
                 "phone": updated_user.phone,
                 "nickname": updated_user.nickname,
             }
