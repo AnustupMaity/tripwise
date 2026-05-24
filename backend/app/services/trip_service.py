@@ -17,6 +17,28 @@ class TripService:
     def __init__(self) -> None:
         self._store = build_trip_store()
 
+    def _send_trip_invite_email(self, *, recipient_email: str, trip_name: str, inviter_name: str, member_name: str | None = None) -> dict:
+        display_name = member_name or recipient_email
+        email_html = f"""
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <h2 style="color: #2c3e50;">You have been added to '{trip_name}'</h2>
+            <p>Hi {display_name},</p>
+            <p>{inviter_name} added you to '{trip_name}' on TripWise.</p>
+            <p>Please open the app and accept the trip invite to start tracking expenses together.</p>
+            <p style="margin-top: 2rem; color: #7f8c8d; font-size: 0.9rem;">
+                TripWise - Simplify group expenses
+            </p>
+        </div>
+        """
+        from app.services.notification_service import notification_service
+
+        return notification_service.enqueue_email(
+            recipient=recipient_email,
+            subject=f"You have been added to '{trip_name}' on TripWise",
+            html_content=email_html,
+            metadata={"tripName": trip_name, "eventType": "trip_invited", "recipientEmail": recipient_email},
+        )
+
     def create_trip(
         self,
         *,
@@ -104,6 +126,13 @@ class TripService:
                             "inviteSent": True,
                         }
                     )
+                    if profile.email:
+                        invite_results[-1]["emailNotification"] = self._send_trip_invite_email(
+                            recipient_email=profile.email,
+                            trip_name=trip.name,
+                            inviter_name=creator.name or creator.email,
+                            member_name=profile.name or profile.email,
+                        )
                 else:
                     member = self._store.add_trip_member(
                         trip_id=trip.trip_id,
@@ -123,6 +152,13 @@ class TripService:
                             "inviteSent": False,
                         }
                     )
+                    if "@" in normalized:
+                        invite_results[-1]["emailNotification"] = self._send_trip_invite_email(
+                            recipient_email=normalized,
+                            trip_name=trip.name,
+                            inviter_name=creator.name or creator.email,
+                            member_name=str(entry.get("name") or "").strip() or None,
+                        )
 
         member_count = self._sync_trip_member_count(trip_id=trip.trip_id)
 
@@ -267,25 +303,12 @@ class TripService:
                 metadata={"tripId": trip_id, "tripName": trip_name},
                 send_whatsapp=False,
             )
-            
-            # Send email invitation
             if profile.email:
-                email_html = f"""
-                <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-                    <h2 style="color: #2c3e50;">You're invited to '{trip_name}'!</h2>
-                    <p>Trip admin has invited you to join '{trip_name}' on TripWise.</p>
-                    <p>Accept the invite in the app to start tracking expenses together.</p>
-                    <p style="margin-top: 2rem; color: #7f8c8d; font-size: 0.9rem;">
-                        TripWise - Simplify group expenses
-                    </p>
-                </div>
-                """
-                from app.services.notification_service import notification_service
-                notification_service.enqueue_email(
-                    recipient=profile.email,
-                    subject=f"Invite: Join '{trip_name}' on TripWise",
-                    html_content=email_html,
-                    metadata={"tripId": trip_id, "eventType": "trip_invited", "memberId": member.member_id},
+                self._send_trip_invite_email(
+                    recipient_email=profile.email,
+                    trip_name=trip_name,
+                    inviter_name="Trip admin",
+                    member_name=profile.name or profile.email,
                 )
             
             return {
@@ -363,9 +386,9 @@ class TripService:
             raise ValueError("member not found")
         if actor_identifier:
             actor = self.resolve_member_for_identifier(trip_id=existing.trip_id, identifier=actor_identifier)
-            if actor is None or actor["inviteStatus"] != "accepted":
+            if actor is None:
                 raise ValueError("actor is not an accepted trip member")
-            if actor["memberId"] != member_id and actor["role"] != "admin":
+            if actor["memberId"] != member_id and (actor["inviteStatus"] != "accepted" or actor["role"] != "admin"):
                 raise ValueError("only invitee or admin can respond")
         if existing.invite_status == action:
             return {
