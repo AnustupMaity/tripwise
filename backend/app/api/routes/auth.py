@@ -54,6 +54,19 @@ class SessionValidationRequest(BaseModel):
     session_token: str
 
 
+class SessionValidationResponse(BaseModel):
+    valid: bool
+    userId: str
+    name: str | None = None
+    nickname: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    upiId: str | None = None
+    upiNumber: str | None = None
+    expiresAt: str
+    lastActiveAt: str
+
+
 class CompleteProfileRequest(BaseModel):
     session_token: str
     name: str | None = None
@@ -166,8 +179,8 @@ def google_callback(payload: GoogleLoginRequest) -> dict[str, str | bool]:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.post("/session/validate")
-def validate_session(payload: SessionValidationRequest) -> dict[str, str | bool | None]:
+@router.post("/session/validate", response_model=SessionValidationResponse)
+def validate_session(payload: SessionValidationRequest) -> SessionValidationResponse:
     try:
         return auth_service.validate_session(token=payload.session_token)
     except ValueError as exc:

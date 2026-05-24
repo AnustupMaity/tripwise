@@ -301,7 +301,7 @@ class AuthService:
                 "requiresProfileCompletion": requires_profile_completion,
             }
 
-    def validate_session(self, *, token: str) -> dict[str, str | bool]:
+    def validate_session(self, *, token: str) -> dict[str, str | bool | None]:
         with self._lock:
             verify_session_token(token)
             token_hash = hash_session_token(token)
