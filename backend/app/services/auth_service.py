@@ -292,7 +292,7 @@ class AuthService:
 
             self._link_pending_trip_memberships(email=user.email, user_id=user.user_id)
             session = self._create_session(user.user_id)
-            requires_profile_completion = not bool(user.phone) or not bool(user.upi_id or user.upi_number)
+            requires_profile_completion = not bool(user.phone)
 
             return {
                 "userId": user.user_id,
@@ -354,7 +354,7 @@ class AuthService:
                 nickname=nickname,
             )
 
-            requires_profile_completion = not bool(updated_user.phone) or not bool(updated_user.upi_id or updated_user.upi_number)
+            requires_profile_completion = not bool(updated_user.phone)
             return {
                 "userId": updated_user.user_id,
                 "requiresProfileCompletion": requires_profile_completion,
@@ -436,7 +436,7 @@ class AuthService:
                 name=name.strip() if name else None,
             )
 
-            requires_profile_completion = not bool(updated_user.phone) or not bool(updated_user.upi_id or updated_user.upi_number)
+            requires_profile_completion = not bool(updated_user.phone)
             return {
                 "userId": updated_user.user_id,
                 "requiresProfileCompletion": requires_profile_completion,
