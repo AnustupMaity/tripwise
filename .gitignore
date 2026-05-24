@@ -46,3 +46,17 @@ supabase/.temp/
 
 # Runtime artifacts
 backend/generated_reports/
+
+# Optional post-deploy cleanup files
+# Remove these from the repo if you want a production-only tree.
+docs/implementation/deploy-production.md
+docs/implementation/run-commands.md
+docs/implementation/phase-1-checklist.md
+docs/implementation/production-hardening-checklist.md
+docs/architecture/tripwise-v1.md
+web/tests/
+backend/tests/
+web/playwright.config.ts
+web/vitest.config.ts
+web/tests/setup.ts
+backend/scripts/seed_test_user.py
