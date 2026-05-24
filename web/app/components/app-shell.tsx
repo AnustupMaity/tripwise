@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { PropsWithChildren, useEffect, useRef, useState } from "react";
 import { resolveApiBase } from "../lib/api-base";
+import { clearSession, readSessionToken } from "../lib/session-storage";
 
 const API_BASE = resolveApiBase();
 
@@ -22,8 +23,7 @@ export function AppShell({ children }: PropsWithChildren) {
   const hasValidatedForMain = useRef(false);
 
   function logout() {
-    localStorage.removeItem("tripwise_session_token");
-    localStorage.removeItem("tripwise_user_id");
+    clearSession();
     localStorage.removeItem("tripwise_trip_currencies");
     router.push("/auth/login");
   }
@@ -42,9 +42,9 @@ export function AppShell({ children }: PropsWithChildren) {
     }
 
     async function validateProtectedSession(isInitial: boolean) {
-      const token = localStorage.getItem("tripwise_session_token") ?? "";
+      const token = readSessionToken();
       if (!token) {
-        localStorage.removeItem("tripwise_user_id");
+        clearSession();
         router.replace("/auth/login");
         return;
       }
@@ -71,8 +71,7 @@ export function AppShell({ children }: PropsWithChildren) {
         }
       } catch {
         if (active) {
-          localStorage.removeItem("tripwise_session_token");
-          localStorage.removeItem("tripwise_user_id");
+          clearSession();
           router.replace("/auth/login");
         }
       }

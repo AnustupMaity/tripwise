@@ -4,14 +4,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { apiRequest } from "../../lib/api";
+import { writeSession } from "../../lib/session-storage";
 import { ensureGoogleInitialized, renderGoogleButton, setGoogleCredentialHandler } from "../../lib/google-gsi";
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-
-function storeSession(sessionToken: string, userId: string) {
-  localStorage.setItem("tripwise_session_token", sessionToken);
-  localStorage.setItem("tripwise_user_id", userId);
-}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -53,7 +49,7 @@ export default function LoginPage() {
             body: JSON.stringify({ id_token: credential }),
           },
         );
-        storeSession(data.sessionToken, data.userId);
+        writeSession(data.sessionToken, data.userId);
         if (data.requiresProfileCompletion) {
           setSessionTokenForProfile(data.sessionToken);
           setNotice("Google login successful. Complete profile below.");
