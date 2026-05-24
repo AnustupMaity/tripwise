@@ -49,6 +49,7 @@ class Settings:
     push_webhook_url: str | None
     notification_retry_max_attempts: int
     notification_retry_base_delay_seconds: int
+    jwt_secret: str | None
     auth_expose_otp_in_response: bool
     cors_allowed_origins: list[str]
     request_audit_log_enabled: bool
@@ -73,6 +74,7 @@ settings = Settings(
     push_webhook_url=os.getenv("PUSH_WEBHOOK_URL"),
     notification_retry_max_attempts=int(os.getenv("NOTIFICATION_RETRY_MAX_ATTEMPTS", "3")),
     notification_retry_base_delay_seconds=int(os.getenv("NOTIFICATION_RETRY_BASE_DELAY_SECONDS", "5")),
+    jwt_secret=os.getenv("JWT_SECRET"),
     auth_expose_otp_in_response=os.getenv("AUTH_EXPOSE_OTP_IN_RESPONSE", "true").strip().lower() in {"1", "true", "yes"},
     cors_allowed_origins=[
         o.strip()
