@@ -116,3 +116,13 @@ async def hardening_middleware(request: Request, call_next):
 @app.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/")
+def root() -> dict[str, str]:
+    return {
+        "name": "TripWise API",
+        "status": "ok",
+        "health": "/health",
+        "api": "/api/v1",
+    }
