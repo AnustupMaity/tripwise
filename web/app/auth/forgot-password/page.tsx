@@ -2,25 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
-import { resolveApiBase } from "../../lib/api-base";
-
-const API_BASE = resolveApiBase();
-
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-  });
-  const text = await response.text();
-  const data = text ? JSON.parse(text) : {};
-  if (!response.ok) {
-    throw new Error(data.detail || text || `Request failed (${response.status})`);
-  }
-  return data as T;
-}
+import { apiRequest } from "../../lib/api";
 
 export default function ForgotPasswordPage() {
   const [identifier, setIdentifier] = useState("");
@@ -35,7 +17,7 @@ export default function ForgotPasswordPage() {
     try {
       setLoading(true);
       setError("");
-      const data = await api<{ message?: string }>("/auth/forgot-password/request-otp", {
+      const data = await apiRequest<{ message?: string }>("/auth/forgot-password/request-otp", {
         method: "POST",
         body: JSON.stringify({ identifier: identifier.trim() }),
       });
@@ -52,7 +34,7 @@ export default function ForgotPasswordPage() {
     try {
       setLoading(true);
       setError("");
-      const data = await api<{ resetToken: string }>("/auth/forgot-password/verify-otp", {
+      const data = await apiRequest<{ resetToken: string }>("/auth/forgot-password/verify-otp", {
         method: "POST",
         body: JSON.stringify({ identifier: identifier.trim(), otp: resetOtp.trim() }),
       });
@@ -70,7 +52,7 @@ export default function ForgotPasswordPage() {
     try {
       setLoading(true);
       setError("");
-      await api("/auth/forgot-password/reset", {
+      await apiRequest("/auth/forgot-password/reset", {
         method: "POST",
         body: JSON.stringify({ reset_token: resetToken.trim(), new_password: newPassword }),
       });

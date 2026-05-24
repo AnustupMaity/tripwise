@@ -2,26 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
-import { resolveApiBase } from "../../lib/api-base";
+import { apiRequest } from "../../lib/api";
 
-const API_BASE = resolveApiBase();
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-  });
-  const text = await response.text();
-  const data = text ? JSON.parse(text) : {};
-  if (!response.ok) {
-    throw new Error(data.detail || text || `Request failed (${response.status})`);
-  }
-  return data as T;
-}
 
 function storeSession(sessionToken: string, userId: string) {
   localStorage.setItem("tripwise_session_token", sessionToken);
@@ -70,7 +53,7 @@ export default function RegisterPage() {
           try {
             setLoading(true);
             setError("");
-            const data = await api<{ sessionToken: string; userId: string }>("/auth/google/callback", {
+            const data = await apiRequest<{ sessionToken: string; userId: string }>("/auth/google/callback", {
               method: "POST",
               body: JSON.stringify({ id_token: resp.credential }),
             });
@@ -97,7 +80,7 @@ export default function RegisterPage() {
     try {
       setLoading(true);
       setError("");
-      await api<{ otp?: string }>("/auth/register/request-otp", {
+      await apiRequest<{ otp?: string }>("/auth/register/request-otp", {
         method: "POST",
         body: JSON.stringify({
           name,
@@ -124,7 +107,7 @@ export default function RegisterPage() {
     try {
       setLoading(true);
       setError("");
-      const data = await api<{ sessionToken: string; userId: string }>("/auth/register/verify-otp", {
+      const data = await apiRequest<{ sessionToken: string; userId: string }>("/auth/register/verify-otp", {
         method: "POST",
         body: JSON.stringify({ email, otp }),
       });
