@@ -8,6 +8,8 @@ services:
     startCommand: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.14
       - key: APP_ENV
         value: production
       - key: AUTH_EXPOSE_OTP_IN_RESPONSE
