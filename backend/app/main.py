@@ -127,13 +127,3 @@ def root() -> dict[str, str]:
         "health": "/health",
         "version": app.version,
     }
-
-
-@app.get("/")
-def root() -> dict[str, str]:
-    return {
-        "name": "TripWise API",
-        "status": "ok",
-        "health": "/health",
-        "api": "/api/v1",
-    }

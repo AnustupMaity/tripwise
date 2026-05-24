@@ -18,7 +18,7 @@
 3. Select this repo; Render reads `render.yaml`.
 4. Fill environment values when prompted:
    - `APP_BASE_URL=https://<your-backend-domain>`
-   - `CORS_ALLOWED_ORIGINS=https://<your-vercel-domain>,http://localhost:3000`
+   - `CORS_ALLOWED_ORIGINS=https://tripwise-liard.vercel.app,http://localhost:3000,http://127.0.0.1:3000`
    - `SUPABASE_DB_URL=<session-pooler-uri>`
    - `SUPABASE_URL=<project-url>`
    - `SUPABASE_ANON_KEY=<anon-key>`
@@ -68,7 +68,7 @@ Use this to keep Render and Vercel aligned with the deployed code.
 
 - `APP_ENV=production`
 - `APP_BASE_URL=https://<your-backend-domain>`
-- `CORS_ALLOWED_ORIGINS=https://<your-vercel-domain>,http://localhost:3000`
+- `CORS_ALLOWED_ORIGINS=https://tripwise-liard.vercel.app,http://localhost:3000,http://127.0.0.1:3000`
 - `AUTH_EXPOSE_OTP_IN_RESPONSE=false`
 - `USE_INMEMORY_STORES=false`
 - `SUPABASE_DB_URL=<session-pooler-uri>`

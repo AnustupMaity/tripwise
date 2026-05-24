@@ -78,7 +78,10 @@ settings = Settings(
     auth_expose_otp_in_response=os.getenv("AUTH_EXPOSE_OTP_IN_RESPONSE", "true").strip().lower() in {"1", "true", "yes"},
     cors_allowed_origins=[
         o.strip()
-        for o in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
+        for o in os.getenv(
+            "CORS_ALLOWED_ORIGINS",
+            "https://tripwise-liard.vercel.app,http://localhost:3000,http://127.0.0.1:3000",
+        ).split(",")
         if o.strip()
     ],
     request_audit_log_enabled=os.getenv("REQUEST_AUDIT_LOG_ENABLED", "true").strip().lower() in {"1", "true", "yes"},
