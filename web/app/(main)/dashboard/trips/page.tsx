@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { resolveApiBase } from "../../lib/api-base";
+import { resolveApiBase } from "../../../lib/api-base";
 
 type Trip = {
   trip_id: string;
