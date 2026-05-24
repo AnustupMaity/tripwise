@@ -18,7 +18,7 @@
 3. Select this repo; Render reads `render.yaml`.
 4. Fill environment values when prompted:
    - `APP_BASE_URL=https://<your-backend-domain>`
-   - `CORS_ALLOWED_ORIGINS=https://<your-vercel-domain>,http://localhost:3000`
+   - `CORS_ALLOWED_ORIGINS=https://tripwise-liard.vercel.app,http://localhost:3000,http://127.0.0.1:3000`
    - `SUPABASE_DB_URL=<session-pooler-uri>`
    - `SUPABASE_URL=<project-url>`
    - `SUPABASE_ANON_KEY=<anon-key>`
@@ -59,4 +59,43 @@
 4. Check host/username matches Supabase dashboard exactly.
 5. For local-only fallback:
    - `USE_INMEMORY_STORES=true`
+
+## 6) Exact Env Checklist
+
+Use this to keep Render and Vercel aligned with the deployed code.
+
+### Render backend
+
+- `APP_ENV=production`
+- `APP_BASE_URL=https://<your-backend-domain>`
+- `CORS_ALLOWED_ORIGINS=https://tripwise-liard.vercel.app,http://localhost:3000,http://127.0.0.1:3000`
+- `AUTH_EXPOSE_OTP_IN_RESPONSE=false`
+- `USE_INMEMORY_STORES=false`
+- `SUPABASE_DB_URL=<session-pooler-uri>`
+- `SUPABASE_URL=<project-url>`
+- `SUPABASE_ANON_KEY=<anon-key>`
+- `SUPABASE_SERVICE_ROLE_KEY=<service-role-key>`
+- `BREVO_API_KEY=<brevo-key>`
+- `BREVO_SENDER_EMAIL=<sender-email>`
+- `BREVO_SENDER_NAME=TripWise`
+- `GOOGLE_CLIENT_ID=<google-client-id>`
+- `GOOGLE_CLIENT_SECRET=<google-client-secret>`
+- `PUSH_WEBHOOK_URL=<optional-webhook-url-or-empty>`
+- `NOTIFICATION_RETRY_MAX_ATTEMPTS=3`
+- `NOTIFICATION_RETRY_BASE_DELAY_SECONDS=5`
+- `JWT_SECRET=<long-random-secret>`
+
+### Vercel web
+
+- `NEXT_PUBLIC_API_BASE_URL=https://<your-backend-domain>/api/v1`
+- `NEXT_PUBLIC_GOOGLE_CLIENT_ID=<google-client-id>`
+
+### Quick smoke checks
+
+1. Open `https://<your-backend-domain>/health` and confirm `{"status":"ok"}`.
+2. Open `https://<your-backend-domain>/` and confirm a JSON landing payload, not `Not Found`.
+3. Open the web app and confirm login/register pages can reach the backend without `Failed to fetch`.
+4. Run a register OTP request and verify the browser network call goes to `https://<your-backend-domain>/api/v1/auth/register/request-otp`.
+5. Sign in, open the dashboard, and confirm the session validator calls `https://<your-backend-domain>/api/v1/auth/session/validate`.
+6. Create a trip and confirm the dashboard can load trips, members, and expenses without CORS errors.
 

@@ -3,25 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
+import { apiRequest } from "../../lib/api";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-  });
-  const text = await response.text();
-  const data = text ? JSON.parse(text) : {};
-  if (!response.ok) {
-    throw new Error(data.detail || text || `Request failed (${response.status})`);
-  }
-  return data as T;
-}
 
 function storeSession(sessionToken: string, userId: string) {
   localStorage.setItem("tripwise_session_token", sessionToken);
@@ -73,7 +57,7 @@ export default function LoginPage() {
         try {
           setLoading(true);
           setError("");
-          const data = await api<{ sessionToken: string; userId: string; requiresProfileCompletion: boolean }>(
+          const data = await apiRequest<{ sessionToken: string; userId: string; requiresProfileCompletion: boolean }>(
             "/auth/google/callback",
             {
               method: "POST",
@@ -117,7 +101,7 @@ export default function LoginPage() {
       setLoading(true);
       setError("");
       setShowSignupHint(false);
-      const data = await api<{ message?: string; otp?: string; expiresAt?: string }>("/auth/login/request-otp", {
+      const data = await apiRequest<{ message?: string; otp?: string; expiresAt?: string }>("/auth/login/request-otp", {
         method: "POST",
         body: JSON.stringify({ identifier: identifier.trim() }),
       });
@@ -137,7 +121,7 @@ export default function LoginPage() {
       setLoading(true);
       setError("");
       setShowSignupHint(false);
-      const data = await api<{ sessionToken: string; userId: string }>("/auth/login/verify-otp", {
+      const data = await apiRequest<{ sessionToken: string; userId: string }>("/auth/login/verify-otp", {
         method: "POST",
         body: JSON.stringify({
           identifier: identifier.trim(),
@@ -161,7 +145,7 @@ export default function LoginPage() {
     try {
       setLoading(true);
       setError("");
-      const data = await api<{ sessionToken: string; userId: string }>("/auth/login/password", {
+      const data = await apiRequest<{ sessionToken: string; userId: string }>("/auth/login/password", {
         method: "POST",
         body: JSON.stringify({ identifier: identifier.trim(), password }),
       });
@@ -179,7 +163,7 @@ export default function LoginPage() {
     try {
       setLoading(true);
       setError("");
-      await api("/auth/profile/complete", {
+      await apiRequest("/auth/profile/complete", {
         method: "POST",
         body: JSON.stringify({
           session_token: sessionTokenForProfile.trim(),

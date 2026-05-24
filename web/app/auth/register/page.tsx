@@ -2,25 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
+import { apiRequest } from "../../lib/api";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-  });
-  const text = await response.text();
-  const data = text ? JSON.parse(text) : {};
-  if (!response.ok) {
-    throw new Error(data.detail || text || `Request failed (${response.status})`);
-  }
-  return data as T;
-}
 
 function storeSession(sessionToken: string, userId: string) {
   localStorage.setItem("tripwise_session_token", sessionToken);
@@ -40,6 +24,13 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [requestedOtp, setRequestedOtp] = useState(false);
+  const isRegistrationFormComplete =
+    name.trim().length >= 2 &&
+    nickname.trim().length >= 2 &&
+    email.trim().length > 0 &&
+    phone.trim().length > 0 &&
+    password.length >= 8 &&
+    confirmPassword.length >= 8;
 
   useEffect(() => {
     if (!GOOGLE_CLIENT_ID) {
@@ -69,7 +60,7 @@ export default function RegisterPage() {
           try {
             setLoading(true);
             setError("");
-            const data = await api<{ sessionToken: string; userId: string }>("/auth/google/callback", {
+            const data = await apiRequest<{ sessionToken: string; userId: string }>("/auth/google/callback", {
               method: "POST",
               body: JSON.stringify({ id_token: resp.credential }),
             });
@@ -96,7 +87,7 @@ export default function RegisterPage() {
     try {
       setLoading(true);
       setError("");
-      await api<{ otp?: string }>("/auth/register/request-otp", {
+      await apiRequest<{ otp?: string }>("/auth/register/request-otp", {
         method: "POST",
         body: JSON.stringify({
           name,
@@ -123,7 +114,7 @@ export default function RegisterPage() {
     try {
       setLoading(true);
       setError("");
-      const data = await api<{ sessionToken: string; userId: string }>("/auth/register/verify-otp", {
+      const data = await apiRequest<{ sessionToken: string; userId: string }>("/auth/register/verify-otp", {
         method: "POST",
         body: JSON.stringify({ email, otp }),
       });
@@ -142,15 +133,32 @@ export default function RegisterPage() {
       <section className="auth-card auth-grid">
         <h1>Register</h1>
         <p className="auth-sub">Signup with OTP verification sent to your email.</p>
+        <p className="empty-copy">
+          All fields are required. Password must be 8-128 characters and include at least one letter and one number.
+          Phone should be in international format, for example <strong>+919999999999</strong>.
+        </p>
 
         <form className="auth-block stack-form" onSubmit={requestOtp}>
-          <input className="tw-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" />
-          <input className="tw-input" value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder="Nickname" />
-          <input className="tw-input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
-          <input className="tw-input" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone (+919999999999)" />
-          <input className="tw-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" />
-          <input className="tw-input" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm password" />
-          <button className="tw-btn" type="submit" disabled={loading || password.length < 8 || confirmPassword.length < 8}>
+          <label className="field-label" htmlFor="register-name">Full name</label>
+          <input id="register-name" className="tw-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" required minLength={2} autoComplete="name" />
+
+          <label className="field-label" htmlFor="register-nickname">Nickname</label>
+          <input id="register-nickname" className="tw-input" value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder="Nickname" required minLength={2} autoComplete="nickname" />
+
+          <label className="field-label" htmlFor="register-email">Email</label>
+          <input id="register-email" className="tw-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required autoComplete="email" />
+
+          <label className="field-label" htmlFor="register-phone">Phone</label>
+          <input id="register-phone" className="tw-input" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone (+919999999999)" required pattern="^\\+?[0-9]{8,15}$" inputMode="tel" autoComplete="tel" />
+
+          <label className="field-label" htmlFor="register-password">Password</label>
+          <input id="register-password" className="tw-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required minLength={8} autoComplete="new-password" />
+          <p className="empty-copy">Use 8-128 characters with at least one letter and one number.</p>
+
+          <label className="field-label" htmlFor="register-confirm-password">Confirm password</label>
+          <input id="register-confirm-password" className="tw-input" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm password" required minLength={8} autoComplete="new-password" />
+
+          <button className="tw-btn" type="submit" disabled={loading || !isRegistrationFormComplete}>
             Request Signup OTP
           </button>
         </form>
@@ -158,7 +166,8 @@ export default function RegisterPage() {
         {requestedOtp ? (
           <form className="auth-block stack-form" onSubmit={verifyOtp}>
             <h2>Verify Signup OTP</h2>
-            <input className="tw-input" value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="Enter OTP" maxLength={6} />
+            <p className="empty-copy">Enter the 6-digit code sent to your email. The code expires after 10 minutes.</p>
+            <input className="tw-input" value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="Enter OTP" maxLength={6} required inputMode="numeric" pattern="[0-9]{6}" />
             <button className="tw-btn" type="submit" disabled={loading || otp.trim().length !== 6}>
               Complete Signup
             </button>

@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { PropsWithChildren, useEffect, useRef, useState } from "react";
+import { resolveApiBase } from "../lib/api-base";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
+const API_BASE = resolveApiBase();
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },

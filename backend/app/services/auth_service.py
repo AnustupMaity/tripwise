@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from app.core.settings import settings
-from app.core.security import generate_otp, generate_token, hash_password, verify_password
+from app.core.security import generate_otp, generate_token, hash_password, sign_session_token, verify_password, verify_session_token
 from app.services.auth_store import build_auth_store, hash_session_token
 from app.services.notification_service import notification_service
 from app.services.trip_store import build_trip_store
@@ -300,6 +300,7 @@ class AuthService:
 
     def validate_session(self, *, token: str) -> dict[str, str | bool]:
         with self._lock:
+            verify_session_token(token)
             token_hash = hash_session_token(token)
             session = self._store.find_session(token_hash=token_hash)
             if session is None:
@@ -363,12 +364,13 @@ class AuthService:
 
     def _create_session(self, user_id: str) -> SessionRecord:
         now = utc_now()
-        token = generate_token(32)
+        expires_at = now + timedelta(days=SESSION_VALID_DAYS)
+        token = sign_session_token(user_id=user_id, expires_at=expires_at)
         token_hash = hash_session_token(token)
         session = SessionRecord(
             token=token,
             user_id=user_id,
-            expires_at=now + timedelta(days=SESSION_VALID_DAYS),
+            expires_at=expires_at,
             last_active_at=now,
         )
         self._store.create_session(

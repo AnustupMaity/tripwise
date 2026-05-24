@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { resolveApiBase } from "../../lib/api-base";
 
 type Trip = {
   trip_id: string;
@@ -133,7 +134,7 @@ function parseMoney(value: string): number {
   return toMoney(parsed);
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
+const API_BASE = resolveApiBase();
 
 function getSessionToken(): string {
   if (typeof window === "undefined") {
@@ -1061,7 +1062,7 @@ export default function DashboardPage() {
             <article className="widget-card">
               <h2>Trip Lifecycle</h2>
               <label className="field-label">Trip Currency</label>
-              <select className="tw-input" value={currentCurrency} onChange={(event) => onChangeTripCurrency(event.target.value)}>
+              <select className="tw-input" value={currentCurrency} onChange={(event) => onChangeTripCurrency(event.target.value)} title="Trip currency" aria-label="Trip currency">
                 {CURRENCIES.map((item) => <option key={item} value={item}>{item}</option>)}
               </select>
               <div className="row-actions row-actions-wrap">
@@ -1095,7 +1096,7 @@ export default function DashboardPage() {
               <form className="stack-form" onSubmit={onQuickAddExpense}>
                 <input className="tw-input" value={quickAddReason} onChange={(event) => setQuickAddReason(event.target.value)} placeholder="Reason" />
                 <input className="tw-input" value={quickAddAmount} onChange={(event) => setQuickAddAmount(event.target.value)} placeholder="Amount" />
-                <select className="tw-input" value={quickAddPayerId} onChange={(event) => setQuickAddPayerId(event.target.value)}>
+                <select className="tw-input" value={quickAddPayerId} onChange={(event) => setQuickAddPayerId(event.target.value)} title="Quick add payer" aria-label="Quick add payer">
                   <option value="">Select payer</option>
                   {acceptedEditableMembers.map((member) => (
                     <option key={member.memberId} value={member.memberId}>{memberLabel(member)}</option>
@@ -1293,6 +1294,8 @@ export default function DashboardPage() {
                   setExpenseDescription(preset.description);
                 }
               }}
+              title="Expense template"
+              aria-label="Expense template"
             >
               <option value="">Select template</option>
               {EXPENSE_TEMPLATES.map((item) => <option key={item.label} value={item.label}>{item.label}</option>)}

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { resolveApiBase } from "../../../lib/api-base";
 
 type Trip = {
   trip_id: string;
@@ -26,7 +27,7 @@ type SessionProfile = {
   email?: string;
 };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
+const API_BASE = resolveApiBase();
 
 function getSessionToken(): string {
   if (typeof window === "undefined") {
