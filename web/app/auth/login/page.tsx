@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { apiRequest } from "../../lib/api";
+import { ensureGoogleInitialized, renderGoogleButton, setGoogleCredentialHandler } from "../../lib/google-gsi";
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
@@ -35,64 +36,59 @@ export default function LoginPage() {
     if (!GOOGLE_CLIENT_ID) {
       return;
     }
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
-      const w = window as unknown as {
-        google?: {
-          accounts: {
-            id: {
-              initialize: (cfg: { client_id: string; callback: (resp: { credential: string }) => void }) => void;
-              renderButton: (el: HTMLElement, opts: Record<string, string>) => void;
-            };
-          };
-        };
-      };
-      if (!w.google) {
+    let active = true;
+
+    const onGoogleCredential = async (credential: string) => {
+      if (!active) {
         return;
       }
-      const onGoogleCredential = async (credential: string) => {
-        try {
-          setLoading(true);
-          setError("");
-          const data = await apiRequest<{ sessionToken: string; userId: string; requiresProfileCompletion: boolean }>(
-            "/auth/google/callback",
-            {
-              method: "POST",
-              body: JSON.stringify({ id_token: credential }),
-            },
-          );
-          storeSession(data.sessionToken, data.userId);
-          if (data.requiresProfileCompletion) {
-            setSessionTokenForProfile(data.sessionToken);
-            setNotice("Google login successful. Complete profile below.");
-          } else {
-            router.push("/dashboard");
-          }
-        } catch (requestError) {
-          setError(requestError instanceof Error ? requestError.message : "Google login failed.");
-        } finally {
-          setLoading(false);
+      try {
+        setLoading(true);
+        setError("");
+        const data = await apiRequest<{ sessionToken: string; userId: string; requiresProfileCompletion: boolean }>(
+          "/auth/google/callback",
+          {
+            method: "POST",
+            body: JSON.stringify({ id_token: credential }),
+          },
+        );
+        storeSession(data.sessionToken, data.userId);
+        if (data.requiresProfileCompletion) {
+          setSessionTokenForProfile(data.sessionToken);
+          setNotice("Google login successful. Complete profile below.");
+        } else {
+          router.push("/dashboard");
         }
-      };
-
-      w.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: (resp) => {
-          void onGoogleCredential(resp.credential);
-        },
-      });
-      const buttonEl = document.getElementById("google-login-btn");
-      if (buttonEl) {
-        w.google.accounts.id.renderButton(buttonEl, { theme: "outline", size: "large", text: "continue_with" });
-        setGoogleReady(true);
+      } catch (requestError) {
+        setError(requestError instanceof Error ? requestError.message : "Google login failed.");
+      } finally {
+        setLoading(false);
       }
     };
-    document.body.appendChild(script);
+
+    setGoogleCredentialHandler(onGoogleCredential);
+
+    void ensureGoogleInitialized(GOOGLE_CLIENT_ID)
+      .then(() => {
+        if (!active) {
+          return;
+        }
+        if (renderGoogleButton("google-login-btn", { theme: "outline", size: "large", text: "continue_with" })) {
+          setGoogleReady(true);
+        }
+      })
+      .catch((initError) => {
+        try {
+          const message = initError instanceof Error ? initError.message : "Failed to initialize Google Sign-In.";
+          setError(message);
+        } catch {
+          setError("Failed to initialize Google Sign-In.");
+        }
+      });
+
     return () => {
-      script.remove();
+      active = false;
+      setGoogleCredentialHandler(null);
     };
   }, []);
 

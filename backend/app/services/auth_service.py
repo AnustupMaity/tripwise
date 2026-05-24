@@ -245,7 +245,7 @@ class AuthService:
             from google.auth.transport import requests as google_requests
             from google.oauth2 import id_token as google_id_token
         except Exception as exc:  # pragma: no cover
-            raise ValueError("google-auth is not installed") from exc
+            raise ValueError("google-auth transport dependency is missing (install requests)") from exc
 
         try:
             token_info = google_id_token.verify_oauth2_token(
@@ -254,7 +254,10 @@ class AuthService:
                 settings.google_client_id,
             )
         except Exception as exc:  # pragma: no cover
-            raise ValueError("invalid google token") from exc
+            reason = str(exc).strip() or "unknown verification error"
+            raise ValueError(
+                f"invalid google token: {reason}. Check GOOGLE_CLIENT_ID audience match and token freshness."
+            ) from exc
 
         google_sub = str(token_info.get("sub") or "").strip()
         if not google_sub:
