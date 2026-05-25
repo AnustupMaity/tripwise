@@ -1305,30 +1305,6 @@ export default function DashboardPage() {
                   Please choose a trip before creating this expense.
                 </p>
               ) : null}
-              {trips.length > 1 ? (
-                <>
-                  <p className="empty-copy">Multiple trips are available. Choose any one trip before saving this expense.</p>
-                  <select
-                    className="tw-input"
-                    value={selectedTripId}
-                    onChange={(event) => {
-                      const nextTripId = event.target.value;
-                      setSelectedTripId(nextTripId);
-                      void loadTripDetails(nextTripId);
-                    }}
-                    title="Composer trip selection"
-                    aria-label="Composer trip selection"
-                    disabled={loading}
-                  >
-                    <option value="">Select a trip</option>
-                    {trips.map((trip) => (
-                      <option key={trip.trip_id} value={trip.trip_id}>
-                        {trip.name} ({trip.status})
-                      </option>
-                    ))}
-                  </select>
-                </>
-              ) : null}
             </section>
 
             <div className="expense-grid">

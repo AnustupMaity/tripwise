@@ -57,7 +57,7 @@ const CACHE_KEY = "tripwise_session_profile_cache";
 
 function readCache(): SessionProfile | null {
   try {
-    const raw = sessionStorage.getItem(CACHE_KEY);
+    const raw = localStorage.getItem(CACHE_KEY);
     return raw ? (JSON.parse(raw) as SessionProfile) : null;
   } catch {
     return null;
@@ -66,7 +66,7 @@ function readCache(): SessionProfile | null {
 
 function writeCache(profile: SessionProfile): void {
   try {
-    sessionStorage.setItem(CACHE_KEY, JSON.stringify(profile));
+    localStorage.setItem(CACHE_KEY, JSON.stringify(profile));
   } catch {
     // quota exceeded or private mode – ignore
   }
@@ -74,7 +74,7 @@ function writeCache(profile: SessionProfile): void {
 
 function clearCache(): void {
   try {
-    sessionStorage.removeItem(CACHE_KEY);
+    localStorage.removeItem(CACHE_KEY);
   } catch {
     // ignore
   }
