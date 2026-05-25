@@ -67,7 +67,7 @@ async def hardening_middleware(request: Request, call_next):
     path = request.url.path
     method = request.method.upper()
 
-    if settings.api_rate_limit_enabled:
+    if settings.api_rate_limit_enabled and method != "OPTIONS":
         now = started_at
         if not rate_limiter.allow(
             key=f"global:{ip}",

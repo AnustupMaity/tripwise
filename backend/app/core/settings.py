@@ -34,10 +34,8 @@ def _first_env(*keys: str) -> str | None:
 
 
 app_env = os.getenv("APP_ENV", "development")
-default_cors_allowed_origins = (
-    "https://tripwise-liard.vercel.app" if app_env == "production" else "http://localhost:3000,http://127.0.0.1:3000"
-)
-default_cors_allowed_origin_regex = None if app_env == "production" else r"https://.*\.vercel\.app"
+default_cors_allowed_origins = "https://tripwise-liard.vercel.app,http://localhost:3000,http://127.0.0.1:3000"
+default_cors_allowed_origin_regex = r"https://.*\.vercel\.app"
 
 
 @dataclass(frozen=True)
