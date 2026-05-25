@@ -2,7 +2,6 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { resolveApiBase } from "../../../lib/api-base";
-import { readSessionToken } from "../../../lib/session-storage";
 
 type Trip = {
   trip_id: string;
@@ -34,7 +33,7 @@ function getSessionToken(): string {
   if (typeof window === "undefined") {
     return "";
   }
-  return readSessionToken();
+  return localStorage.getItem("tripwise_session_token") ?? "";
 }
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {

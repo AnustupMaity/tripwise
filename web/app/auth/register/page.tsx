@@ -3,10 +3,14 @@
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { apiRequest } from "../../lib/api";
-import { writeSession } from "../../lib/session-storage";
 import { ensureGoogleInitialized, renderGoogleButton, setGoogleCredentialHandler } from "../../lib/google-gsi";
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+
+function storeSession(sessionToken: string, userId: string) {
+  localStorage.setItem("tripwise_session_token", sessionToken);
+  localStorage.setItem("tripwise_user_id", userId);
+}
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -46,7 +50,7 @@ export default function RegisterPage() {
           method: "POST",
           body: JSON.stringify({ id_token: credential }),
         });
-        writeSession(data.sessionToken, data.userId);
+        storeSession(data.sessionToken, data.userId);
         router.push("/dashboard");
       } catch (requestError) {
         setError(requestError instanceof Error ? requestError.message : "Google signup failed.");
