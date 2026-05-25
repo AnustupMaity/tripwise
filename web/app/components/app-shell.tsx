@@ -7,9 +7,6 @@ import { useSession } from "../lib/session-context";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
-  { href: "/trips", label: "Trips" },
-  { href: "/invite-center", label: "Invite Center" },
-  { href: "/past-trips", label: "Past Trips" },
 ];
 
 export function AppShell({ children }: PropsWithChildren) {

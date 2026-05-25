@@ -58,6 +58,8 @@ export default function DashboardPage() {
   const [createMode, setCreateMode] = useState<CreateMode>("dynamic");
   const [newTripMemberCount, setNewTripMemberCount] = useState(1);
   const [memberDrafts, setMemberDrafts] = useState<MemberDraft[]>([{ name: "", email: "", registered: null }]);
+  const [inviteIdentifier, setInviteIdentifier] = useState("");
+  const [bulkInviteIdentifiers, setBulkInviteIdentifiers] = useState("");
   const [trips, setTrips] = useState<Trip[]>([]);
   const [selectedTripId, setSelectedTripId] = useState("");
   const [members, setMembers] = useState<Member[]>([]);
@@ -828,6 +830,97 @@ export default function DashboardPage() {
     }
   }
 
+  async function onInviteMember(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedTripId) {
+      setError("Select a trip first.");
+      return;
+    }
+    if (!inviteIdentifier.trim()) {
+      setError("Invite identifier is required.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError("");
+      await fetchJson(`/trips/${selectedTripId}/members/invite`, {
+        method: "POST",
+        body: JSON.stringify({ identifier: inviteIdentifier.trim(), actor_identifier: actorIdentifier.trim() }),
+      });
+      setInviteIdentifier("");
+      await loadTripDetails(selectedTripId);
+      setNotice("Member invited.");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Failed to invite member.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onMemberAction(memberId: string, action: "accepted" | "rejected" | "reinvite" | "remove") {
+    if (!selectedTripId) return;
+    try {
+      setLoading(true);
+      setError("");
+      if (action === "accepted" || action === "rejected") {
+        await fetchJson(`/trips/members/${memberId}/respond`, {
+          method: "POST",
+          body: JSON.stringify({ action, actor_identifier: actorIdentifier.trim() }),
+        });
+      } else if (action === "reinvite") {
+        await fetchJson(`/trips/members/${memberId}/reinvite`, { method: "POST", body: JSON.stringify({ actor_identifier: actorIdentifier.trim() }) });
+      } else {
+        await fetchJson(`/trips/members/${memberId}`, { method: "DELETE" });
+      }
+      await loadTripDetails(selectedTripId);
+      setNotice(`Member action complete: ${action}.`);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Failed to update member.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onInviteAll(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedTripId) {
+      setError("Select a trip first.");
+      return;
+    }
+    const identifiers = bulkInviteIdentifiers
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+    if (identifiers.length === 0) {
+      setError("Provide at least one identifier for invite-all.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError("");
+      const response = await fetchJson<{
+        summary: { invitedCount: number; skippedCount: number; memberCount: number };
+      }>(`/trips/${selectedTripId}/members/invite-all`, {
+        method: "POST",
+        body: JSON.stringify({
+          identifiers,
+          actor_identifier: actorIdentifier.trim(),
+        }),
+      });
+      setBulkInviteIdentifiers("");
+      await loadTripDetails(selectedTripId);
+      setNotice(
+        `Invite-all complete. Invited: ${response.summary?.invitedCount ?? 0}, skipped: ${response.summary?.skippedCount ?? 0}.`,
+      );
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Failed to invite all members.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   // ── Render ───────────────────────────────────────────────
 
   return (
@@ -840,7 +933,29 @@ export default function DashboardPage() {
             <h1>Live Operations</h1>
             <p className="dashboard-subcopy">A panoptic view of expenses, perfectly coordinated splits, and precise resolution.</p>
           </div>
-          <div className="row-actions">
+          <div className="row-actions" style={{ alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
+            <select
+              className="tw-input"
+              value={selectedTripId}
+              onChange={(event) => {
+                const nextTripId = event.target.value;
+                setSelectedTripId(nextTripId);
+                if (nextTripId) {
+                  void loadTripDetails(nextTripId);
+                }
+              }}
+              title="Active Trip"
+              aria-label="Active Trip"
+              disabled={loading}
+              style={{ minWidth: "200px", margin: 0 }}
+            >
+              <option value="">-- Select a Trip --</option>
+              {trips.map((trip) => (
+                <option key={trip.trip_id} value={trip.trip_id}>
+                  {trip.name} ({trip.status})
+                </option>
+              ))}
+            </select>
             <button className="tw-btn tw-btn-muted" disabled={loading} onClick={() => void loadTrips()}>
               {loading ? "Loading..." : "Refresh"}
             </button>
@@ -997,10 +1112,39 @@ export default function DashboardPage() {
             </article>
 
             <article className="widget-card">
-                    <div>
-                      <label>My Role</label>
-                      <p>{uiRoleLabel(selectedTrip?.my_role)}</p>
-                    </div>
+              <h2>Invite Member</h2>
+              <form className="stack-form" onSubmit={onInviteMember}>
+                <label className="field-label">Email</label>
+                <input
+                  className="tw-input"
+                  value={inviteIdentifier}
+                  onChange={(event) => setInviteIdentifier(event.target.value)}
+                  placeholder="member@tripwise.dev"
+                />
+                <button className="tw-btn" type="submit" disabled={loading || !selectedTripId || !inviteIdentifier.trim()}>
+                  Invite
+                </button>
+              </form>
+              <form className="stack-form top-gap" onSubmit={onInviteAll}>
+                <label className="field-label">Bulk Invite (comma-separated emails)</label>
+                <textarea
+                  className="tw-input"
+                  rows={2}
+                  value={bulkInviteIdentifiers}
+                  onChange={(event) => setBulkInviteIdentifiers(event.target.value)}
+                  placeholder="a@tripwise.dev, b@tripwise.dev"
+                />
+                <button className="tw-btn tw-btn-muted" type="submit" disabled={loading || !selectedTripId}>
+                  Send Invite To All
+                </button>
+              </form>
+            </article>
+
+            <article className="widget-card">
+              <div style={{ marginBottom: "12px" }}>
+                <label className="field-label">My Role</label>
+                <p className="empty-copy">{uiRoleLabel(selectedTrip?.my_role)}</p>
+              </div>
               <h2>Members</h2>
               {members.length === 0 ? <p className="empty-copy">No members loaded.</p> : null}
               {members.map((member) => (
@@ -1008,6 +1152,36 @@ export default function DashboardPage() {
                   <div>
                     <strong>{memberLabel(member)}</strong>
                     <p>{member.role} | {member.inviteStatus}</p>
+                  </div>
+                  <div className="row-actions row-actions-wrap top-gap">
+                    <button
+                      className="tw-btn tw-btn-small"
+                      onClick={() => void onMemberAction(member.memberId, "accepted")}
+                      disabled={loading || member.inviteStatus === "accepted"}
+                    >
+                      Accept
+                    </button>
+                    <button
+                      className="tw-btn tw-btn-small tw-btn-muted"
+                      onClick={() => void onMemberAction(member.memberId, "rejected")}
+                      disabled={loading || member.inviteStatus === "rejected"}
+                    >
+                      Reject
+                    </button>
+                    <button
+                      className="tw-btn tw-btn-small tw-btn-muted"
+                      onClick={() => void onMemberAction(member.memberId, "reinvite")}
+                      disabled={loading}
+                    >
+                      Reinvite
+                    </button>
+                    <button
+                      className="tw-btn tw-btn-small tw-btn-muted"
+                      onClick={() => void onMemberAction(member.memberId, "remove")}
+                      disabled={loading}
+                    >
+                      Remove
+                    </button>
                   </div>
                 </div>
               ))}
