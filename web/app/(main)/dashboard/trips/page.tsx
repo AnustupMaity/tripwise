@@ -1,65 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { resolveApiBase } from "../../../lib/api-base";
-
-type Trip = {
-  trip_id: string;
-  name: string;
-  status: string;
-  member_count: number;
-  my_role?: string;
-};
-
-type Member = {
-  memberId: string;
-  role: string;
-  inviteStatus: "pending" | "accepted" | "rejected";
-  canEdit: boolean;
-  identifier: string | null;
-};
-
-type SessionProfile = {
-  name?: string;
-  nickname?: string;
-  email?: string;
-};
-
-type CreateMode = "self" | "dynamic";
-
-type MemberDraft = {
-  name: string;
-  email: string;
-  registered: boolean | null;
-};
-
-const API_BASE = resolveApiBase();
-
-function getSessionToken(): string {
-  if (typeof window === "undefined") {
-    return "";
-  }
-  return localStorage.getItem("tripwise_session_token") ?? "";
-}
-
-async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const sessionToken = getSessionToken();
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(sessionToken ? { "x-session-token": sessionToken } : {}),
-      ...(init?.headers ?? {}),
-    },
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `Request failed (${response.status})`);
-  }
-  return response.json() as Promise<T>;
-}
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSession } from "../../../lib/session-context";
+import { fetchJson } from "../../../lib/api-client";
+import type { Trip, Member, CreateMode, MemberDraft } from "../../../lib/types";
 
 function memberTag(member: Member): string {
   const ref = member.identifier ? member.identifier : member.memberId.slice(0, 8);
@@ -72,8 +17,8 @@ function uiRoleLabel(role?: string): string {
 }
 
 export default function TripsPage() {
-  const [actorIdentifier, setActorIdentifier] = useState("");
-  const [sessionProfile, setSessionProfile] = useState<SessionProfile>({});
+  const { actorIdentifier, profile: sessionProfile } = useSession();
+
   const [newTripName, setNewTripName] = useState("");
   const [createMode, setCreateMode] = useState<CreateMode>("dynamic");
   const [newTripMemberCount, setNewTripMemberCount] = useState(1);
@@ -91,41 +36,74 @@ export default function TripsPage() {
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
   const [secondsToNextRefresh, setSecondsToNextRefresh] = useState(15);
 
+  const selectedTripIdRef = useRef(selectedTripId);
+  selectedTripIdRef.current = selectedTripId;
+
   const selectedTrip = useMemo(() => trips.find((trip) => trip.trip_id === selectedTripId) ?? null, [trips, selectedTripId]);
 
+  // ── Auto-clear notices / errors ──────────────────────────
   useEffect(() => {
-    async function hydrateActorIdentifier() {
-      try {
-        const token = getSessionToken();
-        if (!token) {
-          return;
-        }
-        const data = await fetchJson<SessionProfile>("/auth/session/validate", {
-          method: "POST",
-          body: JSON.stringify({ session_token: token }),
-        });
-        setSessionProfile(data);
-        if (data.email) {
-          setActorIdentifier(data.email);
-        }
-      } catch {
-        // AppShell handles redirect for invalid sessions.
-      }
+    if (!notice) return;
+    const id = setTimeout(() => setNotice(""), 5000);
+    return () => clearTimeout(id);
+  }, [notice]);
+
+  useEffect(() => {
+    if (!error) return;
+    const id = setTimeout(() => setError(""), 8000);
+    return () => clearTimeout(id);
+  }, [error]);
+
+  // ── Data loading ─────────────────────────────────────────
+
+  const loadMembers = useCallback(async (tripId: string) => {
+    if (!tripId) {
+      setMembers([]);
+      return;
     }
-    void hydrateActorIdentifier();
+    const payload = await fetchJson<{ members: Member[] }>(`/trips/${tripId}/members`);
+    setMembers(payload.members ?? []);
   }, []);
 
-  useEffect(() => {
-    if (!actorIdentifier) {
-      return;
-    }
-    void loadTrips({ silent: true });
-  }, [actorIdentifier]);
+  const loadTrips = useCallback(async (options?: { silent?: boolean }) => {
+    try {
+      if (!options?.silent) setLoading(true);
+      setError("");
+      const payload = await fetchJson<{ trips: Trip[] }>("/trips");
+      const nextTrips = payload.trips ?? [];
+      setTrips(nextTrips);
+      setLastRefreshedAt(new Date());
+      if (!options?.silent) {
+        setNotice(`Loaded ${nextTrips.length} trip(s).`);
+      }
 
-  useEffect(() => {
-    if (!autoRefreshEnabled) {
-      return;
+      if (nextTrips.length > 0) {
+        const current = selectedTripIdRef.current;
+        const target = nextTrips.find((trip) => trip.trip_id === current) ?? nextTrips[0];
+        setSelectedTripId(target.trip_id);
+        setRenameValue(target.name);
+        await loadMembers(target.trip_id);
+      } else {
+        setSelectedTripId("");
+        setMembers([]);
+        setRenameValue("");
+      }
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Failed to load trips.");
+    } finally {
+      if (!options?.silent) setLoading(false);
     }
+  }, [loadMembers]);
+
+  // Load when actorIdentifier is ready.
+  useEffect(() => {
+    if (!actorIdentifier) return;
+    void loadTrips({ silent: true });
+  }, [actorIdentifier, loadTrips]);
+
+  // Auto-refresh timer — does NOT set loading=true (silent).
+  useEffect(() => {
+    if (!autoRefreshEnabled) return;
 
     setSecondsToNextRefresh(15);
     const timer = setInterval(() => {
@@ -139,45 +117,9 @@ export default function TripsPage() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [autoRefreshEnabled, selectedTripId, actorIdentifier]);
+  }, [autoRefreshEnabled, selectedTripId, actorIdentifier, loadTrips]);
 
-  async function loadTrips(options?: { silent?: boolean }) {
-    try {
-      setLoading(true);
-      setError("");
-      const payload = await fetchJson<{ trips: Trip[] }>("/trips");
-      const nextTrips = payload.trips ?? [];
-      setTrips(nextTrips);
-      setLastRefreshedAt(new Date());
-      if (!options?.silent) {
-        setNotice(`Loaded ${nextTrips.length} trip(s).`);
-      }
-
-      if (nextTrips.length > 0) {
-        const target = nextTrips.find((trip) => trip.trip_id === selectedTripId) ?? nextTrips[0];
-        setSelectedTripId(target.trip_id);
-        setRenameValue(target.name);
-        await loadMembers(target.trip_id);
-      } else {
-        setSelectedTripId("");
-        setMembers([]);
-        setRenameValue("");
-      }
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to load trips.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function loadMembers(tripId: string) {
-    if (!tripId) {
-      setMembers([]);
-      return;
-    }
-    const payload = await fetchJson<{ members: Member[] }>(`/trips/${tripId}/members`);
-    setMembers(payload.members ?? []);
-  }
+  // ── Actions ──────────────────────────────────────────────
 
   async function onCreateTrip(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -238,9 +180,7 @@ export default function TripsPage() {
 
   async function checkMemberStatus(index: number) {
     const email = memberDrafts[index]?.email?.trim();
-    if (!email) {
-      return;
-    }
+    if (!email) return;
     try {
       const result = await fetchJson<{ registered: boolean }>("/auth/identifier/status", {
         method: "POST",
@@ -318,13 +258,10 @@ export default function TripsPage() {
   }
 
   async function onMemberAction(memberId: string, action: "accepted" | "rejected" | "reinvite" | "remove") {
-    if (!selectedTripId) {
-      return;
-    }
+    if (!selectedTripId) return;
     try {
       setLoading(true);
       setError("");
-
       if (action === "accepted" || action === "rejected") {
         await fetchJson(`/trips/members/${memberId}/respond`, {
           method: "POST",
@@ -335,7 +272,6 @@ export default function TripsPage() {
       } else {
         await fetchJson(`/trips/members/${memberId}`, { method: "DELETE" });
       }
-
       await loadTrips();
       setNotice(`Member action complete: ${action}.`);
     } catch (requestError) {
@@ -385,9 +321,7 @@ export default function TripsPage() {
   }
 
   async function onTripState(action: "close" | "archive") {
-    if (!selectedTripId) {
-      return;
-    }
+    if (!selectedTripId) return;
     try {
       setLoading(true);
       setError("");
@@ -472,9 +406,7 @@ export default function TripsPage() {
                     const count = Math.max(1, Math.min(20, Number(event.target.value) || 1));
                     setNewTripMemberCount(count);
                     setMemberDrafts((current) => {
-                      if (current.length === count) {
-                        return current;
-                      }
+                      if (current.length === count) return current;
                       if (current.length < count) {
                         return [...current, ...Array.from({ length: count - current.length }, () => ({ name: "", email: "", registered: null }))];
                       }

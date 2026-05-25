@@ -1,63 +1,15 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { resolveApiBase } from "../../../lib/api-base";
-
-type Trip = {
-  trip_id: string;
-  name: string;
-  status: string;
-  member_count: number;
-  my_role?: string;
-};
-
-type Member = {
-  memberId: string;
-  role: string;
-  inviteStatus: "pending" | "accepted" | "rejected";
-  canEdit: boolean;
-  identifier: string | null;
-};
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { useSession } from "../../../lib/session-context";
+import { fetchJson } from "../../../lib/api-client";
+import type { Trip, Member } from "../../../lib/types";
 
 type BulkAction = "accepted" | "rejected" | "reinvite" | "remove";
 
-type SessionProfile = {
-  name?: string;
-  nickname?: string;
-  email?: string;
-};
-
-const API_BASE = resolveApiBase();
-
-function getSessionToken(): string {
-  if (typeof window === "undefined") {
-    return "";
-  }
-  return localStorage.getItem("tripwise_session_token") ?? "";
-}
-
-async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const sessionToken = getSessionToken();
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(sessionToken ? { "x-session-token": sessionToken } : {}),
-      ...(init?.headers ?? {}),
-    },
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `Request failed (${response.status})`);
-  }
-
-  return response.json() as Promise<T>;
-}
-
 export default function InviteCenterPage() {
-  const [actorIdentifier, setActorIdentifier] = useState("");
-  const [sessionProfile, setSessionProfile] = useState<SessionProfile>({});
+  const { actorIdentifier, profile: sessionProfile } = useSession();
+
   const [trips, setTrips] = useState<Trip[]>([]);
   const [selectedTripId, setSelectedTripId] = useState("");
   const [members, setMembers] = useState<Member[]>([]);
@@ -76,36 +28,28 @@ export default function InviteCenterPage() {
     [selection],
   );
 
+  // ── Auto-clear notices / errors ──────────────────────────
   useEffect(() => {
-    if (!actorIdentifier) {
-      return;
-    }
-    void loadTrips();
-  }, [actorIdentifier]);
+    if (!notice) return;
+    const id = setTimeout(() => setNotice(""), 5000);
+    return () => clearTimeout(id);
+  }, [notice]);
 
   useEffect(() => {
-    async function hydrateActorIdentifier() {
-      try {
-        const token = getSessionToken();
-        if (!token) {
-          return;
-        }
-        const data = await fetchJson<SessionProfile>("/auth/session/validate", {
-          method: "POST",
-          body: JSON.stringify({ session_token: token }),
-        });
-        setSessionProfile(data);
-        if (data.email) {
-          setActorIdentifier(data.email);
-        }
-      } catch {
-        // AppShell handles redirect for invalid sessions.
-      }
-    }
-    void hydrateActorIdentifier();
+    if (!error) return;
+    const id = setTimeout(() => setError(""), 8000);
+    return () => clearTimeout(id);
+  }, [error]);
+
+  // ── Data loading ─────────────────────────────────────────
+
+  const loadMembers = useCallback(async (tripId: string) => {
+    const payload = await fetchJson<{ members: Member[] }>(`/trips/${tripId}/members`);
+    setMembers(payload.members ?? []);
+    setSelection({});
   }, []);
 
-  async function loadTrips() {
+  const loadTrips = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
@@ -128,13 +72,15 @@ export default function InviteCenterPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [selectedTripId, loadMembers]);
 
-  async function loadMembers(tripId: string) {
-    const payload = await fetchJson<{ members: Member[] }>(`/trips/${tripId}/members`);
-    setMembers(payload.members ?? []);
-    setSelection({});
-  }
+  useEffect(() => {
+    if (!actorIdentifier) return;
+    void loadTrips();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actorIdentifier]);
+
+  // ── Actions ──────────────────────────────────────────────
 
   function toggleSelection(memberId: string) {
     setSelection((current) => ({
@@ -156,9 +102,7 @@ export default function InviteCenterPage() {
   }
 
   async function runBulkAction(action: BulkAction) {
-    if (!selectedTripId || selectedMemberIds.length === 0) {
-      return;
-    }
+    if (!selectedTripId || selectedMemberIds.length === 0) return;
 
     try {
       setLoading(true);
@@ -196,9 +140,7 @@ export default function InviteCenterPage() {
 
   async function onSelectTrip(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedTripId) {
-      return;
-    }
+    if (!selectedTripId) return;
     try {
       setLoading(true);
       setError("");

@@ -1,94 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { resolveApiBase } from "../../../lib/api-base";
-
-type Trip = {
-  trip_id: string;
-  name: string;
-  status: string;
-  member_count: number;
-  my_role?: string;
-};
-
-type ReportItem = {
-  report_id: string;
-  report_type: string;
-  format: string;
-  file_url: string;
-  created_at: string;
-};
-
-type SessionProfile = {
-  name?: string;
-  nickname?: string;
-  email?: string;
-};
-
-const API_BASE = resolveApiBase();
-
-function getSessionToken(): string {
-  if (typeof window === "undefined") {
-    return "";
-  }
-  return localStorage.getItem("tripwise_session_token") ?? "";
-}
-
-async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const sessionToken = getSessionToken();
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(sessionToken ? { "x-session-token": sessionToken } : {}),
-      ...(init?.headers ?? {}),
-    },
-  });
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `Request failed (${response.status})`);
-  }
-  return response.json() as Promise<T>;
-}
+import { useCallback, useEffect, useState } from "react";
+import { useSession } from "../../../lib/session-context";
+import { fetchJson } from "../../../lib/api-client";
+import type { Trip, ReportItem } from "../../../lib/types";
 
 export default function PastTripsPage() {
-  const [actorIdentifier, setActorIdentifier] = useState("");
-  const [sessionProfile, setSessionProfile] = useState<SessionProfile>({});
+  const { actorIdentifier, profile: sessionProfile } = useSession();
+
   const [pastTrips, setPastTrips] = useState<Trip[]>([]);
   const [tripReports, setTripReports] = useState<Record<string, ReportItem[]>>({});
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // ── Auto-clear errors ────────────────────────────────────
   useEffect(() => {
-    async function hydrateActorIdentifier() {
-      try {
-        const token = getSessionToken();
-        if (!token) {
-          return;
-        }
-        const data = await fetchJson<SessionProfile>("/auth/session/validate", {
-          method: "POST",
-          body: JSON.stringify({ session_token: token }),
-        });
-        setSessionProfile(data);
-        if (data.email) {
-          setActorIdentifier(data.email);
-        }
-      } catch {
-        // AppShell handles redirect for invalid sessions.
-      }
-    }
-    void hydrateActorIdentifier();
-  }, []);
+    if (!error) return;
+    const id = setTimeout(() => setError(""), 8000);
+    return () => clearTimeout(id);
+  }, [error]);
 
-  useEffect(() => {
-    if (!actorIdentifier) {
-      return;
-    }
-    void loadPastTrips();
-  }, [actorIdentifier]);
+  // ── Data loading ─────────────────────────────────────────
 
-  async function loadPastTrips() {
+  const loadPastTrips = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
@@ -113,7 +47,12 @@ export default function PastTripsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    if (!actorIdentifier) return;
+    void loadPastTrips();
+  }, [actorIdentifier, loadPastTrips]);
 
   return (
     <main className="dashboard-shell">
