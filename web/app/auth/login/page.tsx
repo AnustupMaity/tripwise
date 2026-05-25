@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { apiRequest } from "../../lib/api";
+import { useSession } from "../../lib/session-context";
 import { ensureGoogleInitialized, renderGoogleButton, setGoogleCredentialHandler } from "../../lib/google-gsi";
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
@@ -15,6 +16,7 @@ function storeSession(sessionToken: string, userId: string) {
 
 export default function LoginPage() {
   const router = useRouter();
+  const { refreshProfile } = useSession();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
@@ -54,6 +56,7 @@ export default function LoginPage() {
           },
         );
         storeSession(data.sessionToken, data.userId);
+        await refreshProfile();
         if (data.requiresProfileCompletion) {
           setSessionTokenForProfile(data.sessionToken);
           setNotice("Google login successful. Complete profile below.");
@@ -126,6 +129,7 @@ export default function LoginPage() {
         }),
       });
       storeSession(data.sessionToken, data.userId);
+      await refreshProfile();
       router.push("/dashboard");
       setOtp("");
     } catch (requestError) {
@@ -147,6 +151,7 @@ export default function LoginPage() {
         body: JSON.stringify({ identifier: identifier.trim(), password }),
       });
       storeSession(data.sessionToken, data.userId);
+      await refreshProfile();
       router.push("/dashboard");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Password login failed.");
@@ -170,6 +175,7 @@ export default function LoginPage() {
           upi_number: null,
         }),
       });
+      await refreshProfile();
       router.push("/dashboard");
       setSessionTokenForProfile("");
     } catch (requestError) {
