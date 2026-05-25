@@ -7,6 +7,24 @@ const nextConfig = {
   async headers() {
     return [
       {
+        source: "/",
+        headers: [
+          {
+            key: "Cross-Origin-Opener-Policy",
+            value: "same-origin-allow-popups",
+          },
+        ],
+      },
+      {
+        source: "/dashboard",
+        headers: [
+          {
+            key: "Cross-Origin-Opener-Policy",
+            value: "same-origin-allow-popups",
+          },
+        ],
+      },
+      {
         source: "/auth/:path*",
         headers: [
           {

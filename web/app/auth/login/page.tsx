@@ -186,15 +186,16 @@ export default function LoginPage() {
         <p className="auth-sub">Use email OTP, password, or Google Sign-In.</p>
 
         <article className="auth-block">
-          <label className="field-label">Email</label>
-          <input className="tw-input" value={identifier} onChange={(e) => setIdentifier(e.target.value)} placeholder="Email or Phone" />
+          <label htmlFor="identifier" className="field-label">Email</label>
+          <input id="identifier" name="identifier" className="tw-input" value={identifier} onChange={(e) => setIdentifier(e.target.value)} placeholder="Email or Phone" />
         </article>
 
         <article className="auth-block">
           <h2>OTP Login</h2>
           <button className="tw-btn tw-btn-muted" onClick={() => void requestLoginOtp()} disabled={loading}>Request OTP</button>
           <form className="stack-form" onSubmit={verifyLoginOtp}>
-            <input className="tw-input" value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="Enter OTP" maxLength={6} />
+            <label htmlFor="otp" className="field-label">OTP</label>
+            <input id="otp" name="otp" className="tw-input" value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="Enter OTP" maxLength={6} />
             <button className="tw-btn" type="submit" disabled={loading || otp.trim().length !== 6}>Verify OTP Login</button>
           </form>
         </article>
@@ -202,7 +203,8 @@ export default function LoginPage() {
         <article className="auth-block">
           <h2>Password Login</h2>
           <form className="stack-form" onSubmit={loginWithPassword}>
-            <input className="tw-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" />
+            <label htmlFor="password" className="field-label">Password</label>
+            <input id="password" name="password" className="tw-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" />
             <button className="tw-btn" type="submit" disabled={loading || password.length < 8}>Login with Password</button>
           </form>
         </article>
@@ -224,8 +226,10 @@ export default function LoginPage() {
           <article className="auth-block">
             <h2>Complete Profile</h2>
             <form className="stack-form" onSubmit={completeProfile}>
-              <input className="tw-input" value={profilePhone} onChange={(e) => setProfilePhone(e.target.value)} placeholder="Phone" />
-              <input className="tw-input" value={profileNickname} onChange={(e) => setProfileNickname(e.target.value)} placeholder="Nickname" />
+              <label htmlFor="profilePhone" className="field-label">Phone</label>
+              <input id="profilePhone" name="profilePhone" className="tw-input" value={profilePhone} onChange={(e) => setProfilePhone(e.target.value)} placeholder="Phone" />
+              <label htmlFor="profileNickname" className="field-label">Nickname</label>
+              <input id="profileNickname" name="profileNickname" className="tw-input" value={profileNickname} onChange={(e) => setProfileNickname(e.target.value)} placeholder="Nickname" />
               <button className="tw-btn" type="submit" disabled={loading || !profilePhone.trim()}>Submit Profile</button>
             </form>
           </article>
