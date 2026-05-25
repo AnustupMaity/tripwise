@@ -53,8 +53,7 @@ export default function RegisterPage() {
           body: JSON.stringify({ id_token: credential }),
         });
         storeSession(data.sessionToken, data.userId);
-        await refreshProfile();
-        router.push("/dashboard");
+        window.location.href = "/dashboard";
       } catch (requestError) {
         setError(requestError instanceof Error ? requestError.message : "Google signup failed.");
       } finally {
@@ -122,9 +121,7 @@ export default function RegisterPage() {
         body: JSON.stringify({ email, otp }),
       });
       storeSession(data.sessionToken, data.userId);
-      await refreshProfile();
-      router.push("/dashboard");
-      setOtp("");
+      window.location.href = "/dashboard";
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to verify registration OTP.");
     } finally {

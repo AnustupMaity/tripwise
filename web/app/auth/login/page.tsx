@@ -56,12 +56,11 @@ export default function LoginPage() {
           },
         );
         storeSession(data.sessionToken, data.userId);
-        await refreshProfile();
         if (data.requiresProfileCompletion) {
           setSessionTokenForProfile(data.sessionToken);
           setNotice("Google login successful. Complete profile below.");
         } else {
-          router.push("/dashboard");
+          window.location.href = "/dashboard";
         }
       } catch (requestError) {
         setError(requestError instanceof Error ? requestError.message : "Google login failed.");
@@ -129,9 +128,7 @@ export default function LoginPage() {
         }),
       });
       storeSession(data.sessionToken, data.userId);
-      await refreshProfile();
-      router.push("/dashboard");
-      setOtp("");
+      window.location.href = "/dashboard";
     } catch (requestError) {
       const message = requestError instanceof Error ? requestError.message : "OTP login failed.";
       setError(message);
@@ -151,8 +148,7 @@ export default function LoginPage() {
         body: JSON.stringify({ identifier: identifier.trim(), password }),
       });
       storeSession(data.sessionToken, data.userId);
-      await refreshProfile();
-      router.push("/dashboard");
+      window.location.href = "/dashboard";
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Password login failed.");
     } finally {
@@ -175,9 +171,7 @@ export default function LoginPage() {
           upi_number: null,
         }),
       });
-      await refreshProfile();
-      router.push("/dashboard");
-      setSessionTokenForProfile("");
+      window.location.href = "/dashboard";
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Profile completion failed.");
     } finally {
