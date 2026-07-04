@@ -206,29 +206,54 @@ class TripService:
             synced_count = self._sync_trip_member_count(trip_id=trip.trip_id)
             data = asdict(trip)
             data["member_count"] = synced_count
-            data["my_role"] = self._resolve_role_for_trip(
+            role, invite_status, member_id = self._resolve_my_membership(
                 trip_id=trip.trip_id,
                 normalized_identifier=normalized_identifier,
                 profile_id=profile_id,
             )
+            data["my_role"] = role
+            data["my_invite_status"] = invite_status
+            data["my_member_id"] = member_id
             result.append(data)
         return {"trips": result}
 
     def _resolve_role_for_trip(self, *, trip_id: str, normalized_identifier: str, profile_id: str | None) -> str:
+        role, _, _ = self._resolve_my_membership(
+            trip_id=trip_id,
+            normalized_identifier=normalized_identifier,
+            profile_id=profile_id,
+        )
+        return role
+
+    def _resolve_my_membership(self, *, trip_id: str, normalized_identifier: str, profile_id: str | None) -> tuple[str, str, str | None]:
         trip = self._store.get_trip(trip_id=trip_id)
         if trip is None:
-            return "unknown"
+            return ("unknown", "unknown", None)
+
+        role = "unknown"
+        invite_status = "unknown"
+        member_id = None
 
         if profile_id and trip.created_by == profile_id:
-            return "creator"
+            role = "creator"
+            invite_status = "accepted"
 
         members = self._store.list_trip_members(trip_id=trip_id)
         for member in members:
+            is_match = False
             if profile_id and member.profile_id == profile_id:
-                return member.role
-            if member.guest_identifier and normalize_member_identifier(member.guest_identifier) == normalized_identifier:
-                return member.role
-        return "unknown"
+                is_match = True
+            elif member.guest_identifier and normalize_member_identifier(member.guest_identifier) == normalized_identifier:
+                is_match = True
+
+            if is_match:
+                if role == "unknown":
+                    role = member.role
+                invite_status = member.invite_status
+                member_id = member.member_id
+                break
+
+        return (role, invite_status, member_id)
 
     def list_members(self, *, trip_id: str) -> dict:
         members = self._store.list_trip_members(trip_id=trip_id)

@@ -4,15 +4,16 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { PropsWithChildren, useEffect, useRef, useState } from "react";
 import { resolveApiBase } from "../lib/api-base";
-import { DashboardIcon, TripIcon, InviteIcon, PastIcon, LogoutIcon, SparklesIcon } from "./icons";
+import { DashboardIcon, TripIcon, InviteIcon, PastIcon, LogoutIcon, SparklesIcon, UserIcon } from "./icons";
 
 const API_BASE = resolveApiBase();
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: DashboardIcon },
-  { href: "/trips", label: "Trips", icon: TripIcon },
-  { href: "/invite-center", label: "Invite Center", icon: InviteIcon },
-  { href: "/past-trips", label: "Past Trips", icon: PastIcon },
+  { href: "/dashboard/trips", label: "Trips", icon: TripIcon },
+  { href: "/dashboard/invite-center", label: "Invite Center", icon: InviteIcon },
+  { href: "/dashboard/past-trips", label: "Past Trips", icon: PastIcon },
+  { href: "/dashboard/profile", label: "Manage Profile", icon: UserIcon },
 ];
 
 export function AppShell({ children }: PropsWithChildren) {
@@ -20,7 +21,12 @@ export function AppShell({ children }: PropsWithChildren) {
   const router = useRouter();
   const hideShell = pathname === "/" || pathname.startsWith("/auth/");
   
-  // Initialize synchronously from localStorage so there is ZERO 0ms blocking loader!
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Initialize synchronously from localStorage so there is ZERO 0ms blocking loader after mounting!
   const [authReady, setAuthReady] = useState(() => {
     if (typeof window === "undefined") return true;
     if (pathname === "/" || pathname.startsWith("/auth/")) return true;
@@ -102,7 +108,7 @@ export function AppShell({ children }: PropsWithChildren) {
     return <>{children}</>;
   }
 
-  if (!authReady) {
+  if (!isMounted || !authReady) {
     return (
       <main className="screen-root">
         <section className="screen-card" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem", padding: "3rem" }}>

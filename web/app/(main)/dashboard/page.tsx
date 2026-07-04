@@ -11,6 +11,8 @@ type Trip = {
   status: string;
   member_count: number;
   my_role?: string;
+  my_invite_status?: string;
+  my_member_id?: string;
 };
 
 type Member = {
@@ -487,6 +489,25 @@ export default function DashboardPage() {
       setNotice(`Loaded ${fetchedTrips.length} trip(s).`);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to load trips.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const pendingInvites = useMemo(() => trips.filter((t) => t.my_invite_status === "pending"), [trips]);
+
+  async function respondToTripInvite(memberId: string, action: "accepted" | "rejected") {
+    if (!memberId) return;
+    try {
+      setLoading(true);
+      await fetchJson(`/trips/members/${memberId}/respond`, {
+        method: "POST",
+        body: JSON.stringify({ action, actor_identifier: actorIdentifier.trim() }),
+      });
+      setNotice(`Trip invitation ${action}!`);
+      await loadTrips();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Failed to ${action} invite`);
     } finally {
       setLoading(false);
     }
@@ -1054,350 +1075,258 @@ export default function DashboardPage() {
           </div>
         </header>
 
-        <section className="dashboard-grid-top">
-          <article className="stat-card"><span>Trips</span><strong>{trips.length}</strong></article>
-          <article className="stat-card"><span>Total Members</span><strong>{selectedTrip?.member_count ?? 0}</strong></article>
-          <article className="stat-card"><span>Accepted Members</span><strong>{acceptedMemberCount}</strong></article>
-          <article className="stat-card"><span>Pending Approvals</span><strong>{pendingExpenses.length}</strong></article>
-          <article className="stat-card"><span>Disputes</span><strong>{disputes.length}</strong></article>
-        </section>
-        <section className="widget-card">
-          <h2>Reminder Nudges</h2>
-          <p className="empty-copy">
-            Pending approvals: {pendingExpenses.length} | Unpaid settlements: {settlementRows.length}
-          </p>
-        </section>
+        {pendingInvites.length > 0 ? (
+          <section className="os-card" style={{ marginBottom: "2rem", border: "1px solid rgba(251, 113, 133, 0.5)", background: "linear-gradient(135deg, rgba(251, 113, 133, 0.15), rgba(0, 0, 0, 0.4))", padding: "1.5rem", borderRadius: "16px", boxShadow: "0 8px 32px rgba(251, 113, 133, 0.15)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.75rem" }}>
+              <SparklesIcon size={22} style={{ color: "#FB7185" }} />
+              <h3 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 700, color: "#fff" }}>Action Required: Pending Trip Invitations ({pendingInvites.length})</h3>
+            </div>
+            <p className="empty-copy" style={{ marginBottom: "1.25rem", color: "#E2E8F0", fontSize: "0.95rem" }}>
+              You have been invited to collaborate on the following trips. Accept your invitation to view shared ledgers, approve expenses, and settle balances.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              {pendingInvites.map((trip) => (
+                <div key={trip.trip_id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "1rem", background: "rgba(0,0,0,0.5)", padding: "1rem 1.25rem", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.1)" }}>
+                  <div>
+                    <strong style={{ fontSize: "1.1rem", color: "#fff" }}>{trip.name}</strong>
+                    <p style={{ margin: "0.25rem 0 0", fontSize: "0.85rem", color: "#94A3B8" }}>
+                      Status: {trip.status.toUpperCase()} | Members: {trip.member_count} | Your Assigned Role: {(trip.my_role || "member").toUpperCase()}
+                    </p>
+                  </div>
+                  <div style={{ display: "flex", gap: "0.6rem" }}>
+                    <button
+                      type="button"
+                      className="tw-btn tw-btn-small"
+                      style={{ background: "#10B981", borderColor: "#10B981", color: "#fff", fontWeight: 600 }}
+                      onClick={() => trip.my_member_id && void respondToTripInvite(trip.my_member_id, "accepted")}
+                      disabled={loading || !trip.my_member_id}
+                    >
+                      Accept Invitation
+                    </button>
+                    <button
+                      type="button"
+                      className="tw-btn tw-btn-small tw-btn-muted"
+                      style={{ borderColor: "#FB7185", color: "#FB7185" }}
+                      onClick={() => trip.my_member_id && void respondToTripInvite(trip.my_member_id, "rejected")}
+                      disabled={loading || !trip.my_member_id}
+                    >
+                      Decline
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
-        <section className="dashboard-grid-main">
-          <div className="column-stack">
-            <article className="widget-card">
-              <h2>Session</h2>
-              <p className="empty-copy">
-                Logged in as: <strong>{sessionProfile.name || sessionProfile.nickname || "TripWise User"}</strong>
-              </p>
-              <p className="empty-copy">Email: {actorIdentifier || "-"}</p>
-              <div className="row-actions top-gap">
-                <button className="tw-btn tw-btn-muted" disabled={loading} onClick={() => void loadTrips()}>
-                  Load Trips
-                </button>
-                <button className="tw-btn" type="button" onClick={openProfileEditor} disabled={loading}>
-                  Edit Details
-                </button>
-              </div>
-            </article>
+        {trips.length > 0 ? (
+          <section className="dashboard-grid-top" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", marginBottom: "2rem" }}>
+            <article className="stat-card"><span>Total Trips</span><strong>{trips.length}</strong></article>
+            <article className="stat-card"><span>Accepted Members</span><strong>{acceptedMemberCount}</strong></article>
+            <article className="stat-card"><span>Active Approvals</span><strong>{pendingExpenses.length}</strong></article>
+          </section>
+        ) : null}
 
-            <article className="widget-card">
-              <h2>Create Trip</h2>
-              <form onSubmit={onCreateTrip} className="stack-form">
-                <label className="field-label">Trip Name</label>
-                <input className="tw-input" value={tripName} onChange={(event) => setTripName(event.target.value)} placeholder="Goa Sprint" />
-                <label className="field-label">Add Members Mode</label>
-                <select
-                  className="tw-input"
-                  aria-label="Add members mode"
-                  value={createMode}
-                  onChange={(event) => setCreateMode(event.target.value as CreateMode)}
-                >
-                  <option value="self">Add Only For Myself</option>
-                  <option value="dynamic">Add Dynamic</option>
-                </select>
-                <label className="field-label">Number of Members</label>
-                <input
-                  className="tw-input"
-                  aria-label="Number of members"
-                  type="number"
-                  min={1}
-                  max={20}
-                  value={newTripMemberCount}
-                  onChange={(event) => {
-                    const count = Math.max(1, Math.min(20, Number(event.target.value) || 1));
-                    setNewTripMemberCount(count);
-                    setMemberDrafts((current) => {
-                      if (current.length === count) {
-                        return current;
-                      }
-                      if (current.length < count) {
-                        return [...current, ...Array.from({ length: count - current.length }, () => ({ name: "", email: "", registered: null }))];
-                      }
-                      return current.slice(0, count);
-                    });
+        {trips.length === 0 ? (
+          <section className="os-card" style={{ padding: "4rem 2rem", textAlign: "center", background: "linear-gradient(135deg, rgba(0, 242, 254, 0.08), rgba(0, 0, 0, 0.4))", borderRadius: "24px", border: "1px solid rgba(0, 242, 254, 0.2)", margin: "2rem 0", boxShadow: "0 12px 40px rgba(0, 0, 0, 0.4)" }}>
+            <div style={{ width: "72px", height: "72px", borderRadius: "36px", background: "rgba(0, 242, 254, 0.15)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 1.5rem" }}>
+              <SparklesIcon size={36} style={{ color: "var(--accent)" }} />
+            </div>
+            <h2 style={{ fontSize: "2rem", color: "#fff", marginBottom: "0.75rem", fontWeight: 700 }}>Welcome to Your Master Ledger</h2>
+            <p style={{ color: "#94A3B8", maxWidth: "520px", margin: "0 auto 2rem", fontSize: "1.05rem", lineHeight: 1.6 }}>
+              You aren&apos;t part of any active trips yet. Start by creating a trip, inviting your travel squad, and tracking shared expenses with automated, zero-error math.
+            </p>
+            <a href="/dashboard/trips" className="tw-btn" style={{ display: "inline-block", textDecoration: "none", padding: "1rem 2.2rem", fontSize: "1.1rem", borderRadius: "30px", boxShadow: "0 4px 20px rgba(0, 242, 254, 0.3)" }}>
+              + Create Your First Trip
+            </a>
+          </section>
+        ) : (
+          <section style={{ marginBottom: "2.5rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem", flexWrap: "wrap", gap: "1rem" }}>
+              <h2 style={{ fontSize: "1.4rem", fontWeight: 700, margin: 0, color: "#fff" }}>Your Active Trips ({trips.length})</h2>
+              <a href="/dashboard/trips" className="tw-btn tw-btn-small" style={{ textDecoration: "none" }}>+ New Trip / Manage All</a>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "1.25rem", marginBottom: "2.5rem" }}>
+              {trips.map((trip) => (
+                <div
+                  key={trip.trip_id}
+                  className="os-card"
+                  style={{
+                    padding: "1.5rem",
+                    borderRadius: "16px",
+                    background: selectedTripId === trip.trip_id ? "linear-gradient(135deg, rgba(0, 242, 254, 0.12), rgba(0, 0, 0, 0.6))" : "rgba(0,0,0,0.4)",
+                    border: selectedTripId === trip.trip_id ? "1px solid rgba(0, 242, 254, 0.5)" : "1px solid rgba(255,255,255,0.08)",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                    transition: "all 0.2s ease",
+                    boxShadow: selectedTripId === trip.trip_id ? "0 8px 30px rgba(0, 242, 254, 0.15)" : "none"
                   }}
-                />
-                <label className="field-label">Member Details</label>
-                {memberDrafts.map((draft, index) => (
-                  <div key={`dashboard-member-${index}`} className="stack-form">
-                    <input
-                      className="tw-input"
-                      value={draft.name}
-                      onChange={(event) =>
-                        setMemberDrafts((current) => {
-                          const next = [...current];
-                          next[index] = { ...next[index], name: event.target.value };
-                          return next;
-                        })
-                      }
-                      placeholder={`Member ${index + 1} name`}
-                    />
-                    {createMode === "dynamic" ? (
-                      <>
-                        <input
-                          className="tw-input"
-                          value={draft.email}
-                          onChange={(event) =>
-                            setMemberDrafts((current) => {
-                              const next = [...current];
-                              next[index] = { ...next[index], email: event.target.value, registered: null };
-                              return next;
-                            })
-                          }
-                          onBlur={() => void checkMemberStatus(index)}
-                          placeholder={`Member ${index + 1} email`}
-                        />
-                        <p className="empty-copy">
-                          {draft.registered === null ? "Account status: check email" : draft.registered ? "This member has account" : "This member does not exist yet"}
-                        </p>
-                      </>
-                    ) : null}
-                  </div>
-                ))}
-                <button className="tw-btn" disabled={loading} type="submit">
-                  {createMode === "self" ? "Create Trip (No Invites)" : "Create Trip and Send Invites"}
-                </button>
-              </form>
-            </article>
-
-            <article className="widget-card">
-              <h2>Trips</h2>
-              <div className="trip-list">
-                {trips.length === 0 ? <p className="empty-copy">No trips yet.</p> : null}
-                {trips.map((trip) => (
-                  <button
-                    key={trip.trip_id}
-                    className={`trip-chip ${selectedTripId === trip.trip_id ? "active" : ""}`}
-                    onClick={() => {
-                      setSelectedTripId(trip.trip_id);
-                      void loadTripDetails(trip.trip_id);
-                    }}
-                  >
-                    <span>{trip.name}</span>
-                    <small>{trip.status} | members: {trip.member_count} | role: {uiRoleLabel(trip.my_role)}</small>
-                  </button>
-                ))}
-              </div>
-            </article>
-
-            <article className="widget-card">
-              <h2>Trip Lifecycle</h2>
-              <label className="field-label">Trip Currency</label>
-              <select className="tw-input" value={currentCurrency} onChange={(event) => onChangeTripCurrency(event.target.value)} title="Trip currency" aria-label="Trip currency">
-                {CURRENCIES.map((item) => <option key={item} value={item}>{item}</option>)}
-              </select>
-              <div className="row-actions row-actions-wrap">
-                <button className="tw-btn tw-btn-small" onClick={() => void onTripLifecycle("close")} disabled={!selectedTripId || loading}>
-                  Close Trip
-                </button>
-                <button className="tw-btn tw-btn-small tw-btn-muted" onClick={() => void onTripLifecycle("archive")} disabled={!selectedTripId || loading}>
-                  Archive Trip
-                </button>
-              </div>
-            </article>
-
-            <article className="widget-card">
-                    <div>
-                      <label>My Role</label>
-                      <p>{uiRoleLabel(selectedTrip?.my_role)}</p>
+                >
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
+                      <h3 style={{ fontSize: "1.25rem", fontWeight: 700, color: "#fff", margin: 0 }}>{trip.name}</h3>
+                      <span className="badge" style={{ background: trip.status === "active" ? "rgba(16, 185, 129, 0.15)" : "rgba(255,255,255,0.1)", color: trip.status === "active" ? "#10B981" : "#fff", padding: "0.3rem 0.7rem", borderRadius: "20px", fontSize: "0.75rem", fontWeight: 700 }}>
+                        {trip.status.toUpperCase()}
+                      </span>
                     </div>
-              <h2>Members</h2>
-              {members.length === 0 ? <p className="empty-copy">No members loaded.</p> : null}
-              {members.map((member) => (
-                <div key={member.memberId} className="row-card row-card-stack">
-                  <div>
-                    <strong>{memberLabel(member)}</strong>
-                    <p>{member.role} | {member.inviteStatus}</p>
+                    <p style={{ color: "#94A3B8", fontSize: "0.9rem", margin: "0 0 1.25rem" }}>
+                      Role: <strong style={{ color: "var(--accent)" }}>{(trip.my_role || "member").toUpperCase()}</strong> &bull; {trip.member_count} Members
+                    </p>
+                  </div>
+                  <div style={{ display: "flex", gap: "0.75rem", paddingTop: "1rem", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                    <button
+                      type="button"
+                      className="tw-btn tw-btn-small"
+                      style={{ flex: 1, background: selectedTripId === trip.trip_id ? "var(--accent)" : "rgba(255,255,255,0.1)", color: selectedTripId === trip.trip_id ? "#000" : "#fff", fontWeight: 600 }}
+                      onClick={() => {
+                        setSelectedTripId(trip.trip_id);
+                        void loadTripDetails(trip.trip_id);
+                      }}
+                    >
+                      {selectedTripId === trip.trip_id ? "✓ Active View" : "Select Trip"}
+                    </button>
+                    <a href="/dashboard/trips" className="tw-btn tw-btn-small tw-btn-muted" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
+                      Open Ledger ➔
+                    </a>
                   </div>
                 </div>
               ))}
-            </article>
-            <article className="widget-card">
-              <h2>Quick Add Expense</h2>
-              <form className="stack-form" onSubmit={onQuickAddExpense}>
-                <input className="tw-input" value={quickAddReason} onChange={(event) => setQuickAddReason(event.target.value)} placeholder="Reason" />
-                <input className="tw-input" value={quickAddAmount} onChange={(event) => setQuickAddAmount(event.target.value)} placeholder="Amount" />
-                <select className="tw-input" value={quickAddPayerId} onChange={(event) => setQuickAddPayerId(event.target.value)} title="Quick add payer" aria-label="Quick add payer">
-                  <option value="">Select payer</option>
-                  {acceptedEditableMembers.map((member) => (
-                    <option key={member.memberId} value={member.memberId}>{memberLabel(member)}</option>
-                  ))}
-                </select>
-                <button className="tw-btn" type="submit" disabled={loading}>Quick Add</button>
-              </form>
-            </article>
-          </div>
+            </div>
 
-          <div className="column-stack wide">
-            <article className="widget-card">
-              <h2>Live Expense Ledger</h2>
-              <p className="empty-copy">Excel-style live sheet of trip expenses with running total.</p>
-              <div className="ledger-sheet-wrap">
-                <table className="ledger-sheet" aria-label="Live expense ledger">
-                  <thead>
-                    <tr>
-                      <th>#</th>
-                      <th>Date</th>
-                      <th>Description</th>
-                      <th>Status</th>
-                      <th>Split</th>
-                      <th>Amount</th>
-                      <th>Running Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {liveLedgerRows.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="ledger-empty">No expenses yet for this trip.</td>
-                      </tr>
-                    ) : null}
-                    {liveLedgerRows.map((row, index) => (
-                      <tr key={row.expenseId}>
-                        <td>{index + 1}</td>
-                        <td>{new Date(row.createdAt).toLocaleDateString()}</td>
-                        <td>{row.description}</td>
-                        <td>{row.status}</td>
-                        <td>{row.splitType}</td>
-                        <td>{formatMoney(row.amount)}</td>
-                        <td>{formatMoney(row.runningTotal)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </article>
-
-            <article className="widget-card">
-              <h2>Pending Expense Approvals</h2>
-              {pendingExpenses.length === 0 ? <p className="empty-copy">No pending expenses.</p> : null}
-              {pendingExpenses.map((expense) => (
-                <div key={expense.expense_id} className="row-card">
-                  <div>
-                    <strong>{expense.description}</strong>
-                    <p>{formatMoney(expense.amount)}</p>
-                  </div>
-                  <div className="row-actions">
-                    <button className="tw-btn tw-btn-small" onClick={() => void onReviewExpense(expense.expense_id, "approve")}>Approve</button>
-                    <button className="tw-btn tw-btn-small tw-btn-muted" onClick={() => void onReviewExpense(expense.expense_id, "reject")}>Reject</button>
-                  </div>
-                </div>
-              ))}
-            </article>
-
-            <article className="widget-card">
-              <h2>Disputes</h2>
-              <form className="stack-form" onSubmit={onRaiseDispute}>
-                <select className="tw-input" value={disputeExpenseId} onChange={(event) => setDisputeExpenseId(event.target.value)} title="Dispute expense" aria-label="Dispute expense">
-                  <option value="">Select expense</option>
-                  {expenses.map((expense) => (
-                    <option key={expense.expense_id} value={expense.expense_id}>
-                      {expense.description} - Rs {expense.amount.toFixed(2)} ({expense.status})
-                    </option>
-                  ))}
-                </select>
-                <input className="tw-input" value={disputeAmount} onChange={(event) => setDisputeAmount(event.target.value)} placeholder="Disputed amount (optional)" />
-                <textarea className="tw-input" value={disputeComment} onChange={(event) => setDisputeComment(event.target.value)} rows={3} placeholder="Comment" />
-                <button className="tw-btn" type="submit" disabled={!selectedTripId || loading}>Raise Dispute</button>
-              </form>
-
-              {disputes.map((dispute) => (
-                <div key={dispute.dispute_id} className="row-card row-card-stack">
-                  <div>
-                    <strong>{dispute.status.toUpperCase()} - {dispute.expense_id.slice(0, 8)}</strong>
-                    <p>{dispute.comment}</p>
-                  </div>
-                  <div className="row-actions row-actions-wrap">
-                    <button className="tw-btn tw-btn-small tw-btn-muted" onClick={() => void onSetDisputeState(dispute.dispute_id, "review")}>Mark In Review</button>
-                    <input
-                      className="tw-input compact-input"
-                      placeholder="Resolution note"
-                      value={resolveCommentById[dispute.dispute_id] ?? ""}
-                      onChange={(event) =>
-                        setResolveCommentById((current) => ({
-                          ...current,
-                          [dispute.dispute_id]: event.target.value,
-                        }))
-                      }
-                    />
-                    <button className="tw-btn tw-btn-small" onClick={() => void onSetDisputeState(dispute.dispute_id, "resolve")}>Resolve</button>
-                  </div>
-                </div>
-              ))}
-            </article>
-
-            <article className="widget-card">
-              <h2>Settlement</h2>
-              <select className="tw-input" value={payMethod} onChange={(event) => setPayMethod(event.target.value)} title="Payment method" aria-label="Payment method">
-                <option value="manual">manual</option>
-                <option value="bank">bank</option>
-                <option value="cash">cash</option>
-              </select>
-              {settlementRows.length === 0 ? <p className="empty-copy">No outstanding transfers.</p> : null}
-              {settlementRows.map((row, index) => (
-                <div key={`${row.fromMemberId}-${row.toMemberId}-${index}`} className="row-card">
-                  <div>
-                    <strong>{row.fromMemberId.slice(0, 8)} {"->"} {row.toMemberId.slice(0, 8)}</strong>
-                    <p>{formatMoney(row.amount)}</p>
-                  </div>
-                  <button className="tw-btn tw-btn-small" onClick={() => void onMarkPaid(row)}>Mark Paid</button>
-                </div>
-              ))}
-            </article>
-
-            <article className="widget-card">
-              <h2>Reports</h2>
-              <div className="inline-grid">
-                <select className="tw-input" value={reportType} onChange={(event) => setReportType(event.target.value)} title="Report type" aria-label="Report type">
-                  <option value="summary">summary</option>
-                  <option value="detailed">detailed</option>
-                  <option value="settlement">settlement</option>
-                  <option value="expense_breakdown">expense_breakdown</option>
-                </select>
-                <select className="tw-input" value={reportFormat} onChange={(event) => setReportFormat(event.target.value)} title="Report format" aria-label="Report format">
-                  <option value="pdf">pdf</option>
-                  <option value="excel">excel</option>
-                  <option value="json">json</option>
-                </select>
-              </div>
-              <input className="tw-input" value={reportEmailsCsv} onChange={(event) => setReportEmailsCsv(event.target.value)} placeholder="Email recipients (comma separated)" />
-              <button className="tw-btn" onClick={() => void onGenerateReport()} disabled={!selectedTripId}>Generate Report</button>
-              <button className="tw-btn tw-btn-muted" onClick={() => void onCreatePublicSummaryLink()} disabled={!selectedTripId || loading}>Create Read-only Share Link</button>
-              {publicSummaryLink ? <p className="empty-copy">{publicSummaryLink}</p> : null}
-              <div className="reports-list">
-                {reports.length === 0 ? <p className="empty-copy">No reports generated yet.</p> : null}
-                {reports.map((report) => (
-                  <div key={report.report_id} className="row-card">
-                    <div>
-                      <strong>{report.report_type} ({report.format})</strong>
-                      <p>{new Date(report.created_at).toLocaleString()}</p>
+            {selectedTrip ? (
+              <div className="dashboard-grid-main" style={{ borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: "2rem" }}>
+                <div className="column-stack">
+                  <article className="widget-card">
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                      <div>
+                        <p className="dashboard-eyebrow" style={{ margin: 0 }}>Selected Trip Operations</p>
+                        <h3 style={{ fontSize: "1.4rem", margin: "0.2rem 0 0", color: "#fff" }}>{selectedTrip.name}</h3>
+                      </div>
+                      <a href="/dashboard/trips" className="tw-btn tw-btn-small" style={{ textDecoration: "none" }}>Full Ledger</a>
                     </div>
-                    <a className="tw-btn tw-btn-small tw-btn-muted" href={report.file_url} target="_blank" rel="noreferrer">Download</a>
-                  </div>
-                ))}
-              </div>
-            </article>
+                    <div className="detail-grid" style={{ marginBottom: "1.5rem", background: "rgba(0,0,0,0.3)", padding: "1rem", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.05)" }}>
+                      <div>
+                        <label>Status</label>
+                        <p style={{ fontWeight: 600, color: "#fff", margin: 0 }}>{selectedTrip.status.toUpperCase()}</p>
+                      </div>
+                      <div>
+                        <label>Members</label>
+                        <p style={{ fontWeight: 600, color: "#fff", margin: 0 }}>{selectedTrip.member_count} Total</p>
+                      </div>
+                      <div>
+                        <label>Currency</label>
+                        <p style={{ fontWeight: 600, color: "var(--accent)", margin: 0 }}>{currentCurrency}</p>
+                      </div>
+                    </div>
+                  </article>
 
-            <article className="widget-card">
-              <h2>In-App Notifications</h2>
-              {notifications.length === 0 ? <p className="empty-copy">No notifications yet.</p> : null}
-              {notifications.map((item) => (
-                <div key={item.notification_id} className="row-card row-card-stack">
-                  <div>
-                    <strong>{item.payload?.title ?? item.event_type}</strong>
-                    <p>{item.payload?.message ?? "Update received."}</p>
-                    <p>{new Date(item.created_at).toLocaleString()}</p>
-                  </div>
+                  <article className="widget-card">
+                    <h2>Quick Log Expense</h2>
+                    <p className="empty-copy">Instantly add an expense with equal division among members.</p>
+                    <form className="stack-form top-gap" onSubmit={onQuickAddExpense}>
+                      <input className="tw-input" value={quickAddReason} onChange={(event) => setQuickAddReason(event.target.value)} placeholder="Description (e.g. Hotel, Taxi)" />
+                      <input className="tw-input" value={quickAddAmount} onChange={(event) => setQuickAddAmount(event.target.value)} placeholder="Amount (e.g. 2500)" />
+                      <select className="tw-input" value={quickAddPayerId} onChange={(event) => setQuickAddPayerId(event.target.value)} title="Quick add payer" aria-label="Quick add payer">
+                        <option value="">Who paid?</option>
+                        {acceptedEditableMembers.map((member) => (
+                          <option key={member.memberId} value={member.memberId}>{memberLabel(member)}</option>
+                        ))}
+                      </select>
+                      <button className="tw-btn" type="submit" disabled={loading || !selectedTripId}>Log Quick Expense</button>
+                    </form>
+                  </article>
                 </div>
-              ))}
-            </article>
-          </div>
-        </section>
+
+                <div className="column-stack wide">
+                  <article className="widget-card">
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <h2 style={{ margin: 0 }}>Recent Expenses</h2>
+                      <a href="/dashboard/trips" style={{ fontSize: "0.85rem", color: "var(--accent)", textDecoration: "none" }}>View All -&gt;</a>
+                    </div>
+                    <div className="top-gap">
+                      {liveLedgerRows.length === 0 ? <p className="empty-copy">No expenses recorded yet for this trip.</p> : null}
+                      {liveLedgerRows.slice(0, 5).map((row) => (
+                        <div key={row.expenseId} className="row-card" style={{ padding: "0.8rem 1rem", marginBottom: "0.5rem" }}>
+                          <div>
+                            <strong style={{ color: "#fff" }}>{row.description}</strong>
+                            <p style={{ margin: "0.2rem 0 0", fontSize: "0.8rem", color: "#8A9BA8" }}>
+                              {new Date(row.createdAt).toLocaleDateString()} | Split: {row.splitType}
+                            </p>
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            <strong style={{ color: "var(--accent)", fontSize: "1.05rem" }}>{formatMoney(row.amount)}</strong>
+                            <p style={{ margin: "0.1rem 0 0", fontSize: "0.75rem", color: "#8A9BA8" }}>Total: {formatMoney(row.runningTotal)}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+
+                  {pendingExpenses.length > 0 || disputes.length > 0 ? (
+                    <article className="widget-card">
+                      <h2>Attention Required</h2>
+                      {pendingExpenses.length > 0 ? (
+                        <div style={{ marginBottom: "1.5rem" }}>
+                          <h3 style={{ fontSize: "1rem", color: "#FBBF24", marginBottom: "0.5rem" }}>Pending Expense Approvals ({pendingExpenses.length})</h3>
+                          {pendingExpenses.map((expense) => (
+                            <div key={expense.expense_id} className="row-card" style={{ background: "rgba(251, 191, 36, 0.08)", border: "1px solid rgba(251, 191, 36, 0.3)", marginBottom: "0.5rem" }}>
+                              <div>
+                                <strong style={{ color: "#fff" }}>{expense.description}</strong>
+                                <p style={{ margin: "0.2rem 0 0", color: "#FBBF24" }}>{formatMoney(expense.amount)}</p>
+                              </div>
+                              <div className="row-actions">
+                                <button type="button" className="tw-btn tw-btn-small" style={{ background: "#10B981", borderColor: "#10B981" }} onClick={() => void onReviewExpense(expense.expense_id, "approve")}>Approve</button>
+                                <button type="button" className="tw-btn tw-btn-small tw-btn-muted" style={{ borderColor: "#FB7185", color: "#FB7185" }} onClick={() => void onReviewExpense(expense.expense_id, "reject")}>Reject</button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+
+                      {disputes.length > 0 ? (
+                        <div>
+                          <h3 style={{ fontSize: "1rem", color: "#FB7185", marginBottom: "0.5rem" }}>Active Disputes ({disputes.length})</h3>
+                          {disputes.map((dispute) => (
+                            <div key={dispute.dispute_id} className="row-card row-card-stack" style={{ background: "rgba(251, 113, 133, 0.08)", border: "1px solid rgba(251, 113, 133, 0.3)", marginBottom: "0.5rem" }}>
+                              <div>
+                                <strong style={{ color: "#FB7185" }}>{dispute.status.toUpperCase()} — Expense #{dispute.expense_id.slice(0, 8)}</strong>
+                                <p style={{ margin: "0.4rem 0", color: "#fff" }}>&ldquo;{dispute.comment}&rdquo;</p>
+                              </div>
+                              <div className="row-actions row-actions-wrap">
+                                <button type="button" className="tw-btn tw-btn-small tw-btn-muted" onClick={() => void onSetDisputeState(dispute.dispute_id, "review")}>In Review</button>
+                                <input
+                                  className="tw-input compact-input"
+                                  placeholder="Resolution note"
+                                  value={resolveCommentById[dispute.dispute_id] ?? ""}
+                                  onChange={(event) =>
+                                    setResolveCommentById((current) => ({
+                                      ...current,
+                                      [dispute.dispute_id]: event.target.value,
+                                    }))
+                                  }
+                                />
+                                <button type="button" className="tw-btn tw-btn-small" style={{ background: "#10B981", borderColor: "#10B981" }} onClick={() => void onSetDisputeState(dispute.dispute_id, "resolve")}>Resolve</button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </article>
+                  ) : (
+                    <article className="widget-card" style={{ background: "rgba(16, 185, 129, 0.06)", border: "1px solid rgba(16, 185, 129, 0.2)", display: "flex", alignItems: "center", gap: "1rem", padding: "1.5rem" }}>
+                      <CheckIcon size={28} style={{ color: "#10B981", flexShrink: 0 }} />
+                      <div>
+                        <strong style={{ color: "#10B981", fontSize: "1.05rem" }}>Ledger in Complete Harmony</strong>
+                        <p style={{ margin: "0.2rem 0 0", color: "#94A3B8", fontSize: "0.9rem" }}>No pending approvals or contested expenses for this trip.</p>
+                      </div>
+                    </article>
+                  )}
+                </div>
+              </div>
+            ) : null}
+          </section>
+        )}
 
         {error ? <div className="os-toast" style={{ borderColor: "#FB7185", background: "rgba(24, 10, 15, 0.95)" }}><AlertIcon size={18} style={{ color: "#FB7185" }} /><span>{error}</span></div> : null}
         {notice ? <div className="os-toast" style={{ borderColor: "var(--accent)" }}><CheckIcon size={18} style={{ color: "var(--accent)" }} /><span>{notice}</span></div> : null}

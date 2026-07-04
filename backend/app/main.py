@@ -77,7 +77,7 @@ async def hardening_middleware(request: Request, call_next):
         ):
             return JSONResponse(status_code=429, content={"detail": "too many requests", "requestId": request_id})
 
-        if path.startswith("/api/v1/auth") and not rate_limiter.allow(
+        if path.startswith("/api/v1/auth") and not path.startswith("/api/v1/auth/session/validate") and not rate_limiter.allow(
             key=f"auth:{ip}",
             limit=settings.api_rate_limit_auth_per_5_min,
             window_seconds=300,

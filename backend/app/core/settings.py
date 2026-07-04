@@ -93,7 +93,7 @@ settings = Settings(
     cors_allowed_origin_regex=os.getenv("CORS_ALLOWED_ORIGIN_REGEX", default_cors_allowed_origin_regex),
     request_audit_log_enabled=os.getenv("REQUEST_AUDIT_LOG_ENABLED", "true").strip().lower() in {"1", "true", "yes"},
     api_rate_limit_enabled=os.getenv("API_RATE_LIMIT_ENABLED", "true").strip().lower() in {"1", "true", "yes"},
-    api_rate_limit_per_minute=int(os.getenv("API_RATE_LIMIT_PER_MINUTE", "180")),
-    api_rate_limit_auth_per_5_min=int(os.getenv("API_RATE_LIMIT_AUTH_PER_5_MIN", "30")),
-    api_rate_limit_report_per_min=int(os.getenv("API_RATE_LIMIT_REPORT_PER_MIN", "20")),
+    api_rate_limit_per_minute=int(os.getenv("API_RATE_LIMIT_PER_MINUTE", "600")),
+    api_rate_limit_auth_per_5_min=int(os.getenv("API_RATE_LIMIT_AUTH_PER_5_MIN", "300")),
+    api_rate_limit_report_per_min=int(os.getenv("API_RATE_LIMIT_REPORT_PER_MIN", "60")),
 )
