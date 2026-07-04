@@ -1,26 +1,117 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSession } from "../../lib/session-context";
-import { fetchJson } from "../../lib/api-client";
-import type {
-  Trip,
-  Member,
-  PendingExpense,
-  ExpenseItem,
-  DisputeItem,
-  SettlementRow,
-  ReportItem,
-  InAppNotification,
-  SessionProfile,
-  PayerDraft,
-  SplitDraft,
-  SplitPreset,
-  LedgerRow,
-  ExpenseTemplate,
-  CreateMode,
-  MemberDraft,
-} from "../../lib/types";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { resolveApiBase } from "../../lib/api-base";
+
+type Trip = {
+  trip_id: string;
+  name: string;
+  status: string;
+  member_count: number;
+  my_role?: string;
+};
+
+type Member = {
+  memberId: string;
+  role: string;
+  inviteStatus: string;
+  canEdit: boolean;
+  identifier: string | null;
+};
+
+type PendingExpense = {
+  expense_id: string;
+  description: string;
+  amount: number;
+  status: string;
+};
+
+type ExpenseItem = {
+  expense_id: string;
+  description: string;
+  amount: number;
+  status: string;
+  split_type: string;
+  created_at: string;
+};
+
+type DisputeItem = {
+  dispute_id: string;
+  expense_id: string;
+  status: string;
+  comment: string;
+  disputed_amount: number | null;
+  created_at: string;
+};
+
+type SettlementRow = {
+  fromMemberId: string;
+  toMemberId: string;
+  amount: number;
+};
+
+type ReportItem = {
+  report_id: string;
+  report_type: string;
+  format: string;
+  file_url: string;
+  created_at: string;
+  emailed_to: string[];
+};
+
+type InAppNotification = {
+  notification_id: string;
+  event_type: string;
+  payload: {
+    title?: string;
+    message?: string;
+    tripId?: string;
+  };
+  created_at: string;
+};
+
+type PayerDraft = {
+  memberId: string;
+  amountPaid: string;
+};
+
+type SplitDraft = {
+  memberId: string;
+  include: boolean;
+  amountOwed: string;
+  percentage: string;
+};
+
+type SplitPreset = "equal" | "dutch" | "percentage" | "selective" | "custom";
+
+type SessionProfile = {
+  name?: string;
+  nickname?: string;
+  email?: string;
+  phone?: string;
+  upiId?: string | null;
+  upiNumber?: string | null;
+};
+
+type CreateMode = "self" | "dynamic";
+
+type MemberDraft = {
+  name: string;
+  email: string;
+  registered: boolean | null;
+};
+
+type LedgerRow = {
+  expenseId: string;
+  createdAt: string;
+  description: string;
+  status: string;
+  splitType: string;
+  amount: number;
+  runningTotal: number;
+};
+
+type ExpenseTemplate = { label: string; description: string };
 
 const EXPENSE_TEMPLATES: ExpenseTemplate[] = [
   { label: "Cab", description: "Cab ride" },
@@ -46,20 +137,45 @@ function parseMoney(value: string): number {
   return toMoney(parsed);
 }
 
+const API_BASE = resolveApiBase();
+
+function getSessionToken(): string {
+  if (typeof window === "undefined") {
+    return "";
+  }
+  return localStorage.getItem("tripwise_session_token") ?? "";
+}
+
+async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const sessionToken = getSessionToken();
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(sessionToken ? { "x-session-token": sessionToken } : {}),
+      ...(init?.headers ?? {}),
+    },
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Request failed (${response.status})`);
+  }
+  return response.json() as Promise<T>;
+}
+
 function memberLabel(member: Member): string {
   const uiRole = member.role === "admin" ? "Leader" : "Member";
   return member.identifier ? member.identifier : `${member.memberId.slice(0, 8)} (${uiRole})`;
 }
 
 export default function DashboardPage() {
-  const { actorIdentifier, profile: sessionProfile, refreshProfile } = useSession();
-
+  const [actorIdentifier, setActorIdentifier] = useState("");
+  const [sessionProfile, setSessionProfile] = useState<SessionProfile>({});
   const [tripName, setTripName] = useState("");
   const [createMode, setCreateMode] = useState<CreateMode>("dynamic");
   const [newTripMemberCount, setNewTripMemberCount] = useState(1);
   const [memberDrafts, setMemberDrafts] = useState<MemberDraft[]>([{ name: "", email: "", registered: null }]);
-  const [inviteIdentifier, setInviteIdentifier] = useState("");
-  const [bulkInviteIdentifiers, setBulkInviteIdentifiers] = useState("");
   const [trips, setTrips] = useState<Trip[]>([]);
   const [selectedTripId, setSelectedTripId] = useState("");
   const [members, setMembers] = useState<Member[]>([]);
@@ -105,28 +221,9 @@ export default function DashboardPage() {
   const [tripCurrencies, setTripCurrencies] = useState<Record<string, string>>({});
   const [publicSummaryLink, setPublicSummaryLink] = useState("");
 
-  // Refs to avoid stale closures inside loadTrips / loadTripDetails
-  const selectedTripIdRef = useRef(selectedTripId);
-  selectedTripIdRef.current = selectedTripId;
-
   const selectedTrip = useMemo(() => trips.find((t) => t.trip_id === selectedTripId) ?? null, [trips, selectedTripId]);
   const hasTripSelection = Boolean(selectedTripId && selectedTrip);
   const currentCurrency = selectedTripId ? (tripCurrencies[selectedTripId] ?? "INR") : "INR";
-
-  // ── Auto-clear notices / errors ──────────────────────────
-  useEffect(() => {
-    if (!notice) return;
-    const id = setTimeout(() => setNotice(""), 5000);
-    return () => clearTimeout(id);
-  }, [notice]);
-
-  useEffect(() => {
-    if (!error) return;
-    const id = setTimeout(() => setError(""), 8000);
-    return () => clearTimeout(id);
-  }, [error]);
-
-  // ── Profile editor ───────────────────────────────────────
 
   function openProfileEditor() {
     setProfileName(sessionProfile.name ?? "");
@@ -158,7 +255,7 @@ export default function DashboardPage() {
       await fetchJson<{ message?: string; otp?: string }>("/auth/profile/email/request-otp", {
         method: "POST",
         body: JSON.stringify({
-          session_token: localStorage.getItem("tripwise_session_token") ?? "",
+          session_token: getSessionToken(),
           email,
         }),
       });
@@ -175,10 +272,10 @@ export default function DashboardPage() {
     try {
       setProfileSaving(true);
       setError("");
-      await fetchJson<SessionProfile & { userId?: string; requiresProfileCompletion?: boolean }>("/auth/profile/complete", {
+      const data = await fetchJson<SessionProfile & { userId?: string; requiresProfileCompletion?: boolean }>("/auth/profile/complete", {
         method: "POST",
         body: JSON.stringify({
-          session_token: localStorage.getItem("tripwise_session_token") ?? "",
+          session_token: getSessionToken(),
           name: profileName.trim() || null,
           phone: profilePhone.trim(),
           nickname: profileNickname.trim() || null,
@@ -188,8 +285,16 @@ export default function DashboardPage() {
           upi_number: profileUpiNumber.trim() || null,
         }),
       });
-      // Refresh global session profile from server.
-      await refreshProfile();
+      setSessionProfile((current) => ({
+        ...current,
+        name: data.name ?? profileName.trim(),
+        nickname: data.nickname ?? profileNickname.trim(),
+        email: data.email ?? profileEmail.trim(),
+        phone: data.phone ?? profilePhone.trim(),
+        upiId: data.upiId ?? (profileUpiId.trim() || undefined),
+        upiNumber: data.upiNumber ?? (profileUpiNumber.trim() || undefined),
+      }));
+      setActorIdentifier(data.email ?? profileEmail.trim());
       setNotice("Profile updated successfully.");
       closeProfileEditor();
     } catch (requestError) {
@@ -199,10 +304,190 @@ export default function DashboardPage() {
     }
   }
 
-  // ── Data loading ─────────────────────────────────────────
+  useEffect(() => {
+    async function hydrateActorIdentifier() {
+      try {
+        const token = getSessionToken();
+        if (!token) {
+          return;
+        }
+        const data = await fetchJson<SessionProfile>("/auth/session/validate", {
+          method: "POST",
+          body: JSON.stringify({ session_token: token }),
+        });
+        setSessionProfile(data);
+        if (data.email) {
+          setActorIdentifier(data.email);
+        }
+      } catch {
+        // AppShell handles redirect for invalid sessions.
+      }
+    }
+    void hydrateActorIdentifier();
+  }, []);
 
-  const loadTripDetails = useCallback(async (tripId: string) => {
-    if (!tripId) return;
+  useEffect(() => {
+    if (!actorIdentifier) {
+      return;
+    }
+    void loadTrips();
+  }, [actorIdentifier]);
+
+  useEffect(() => {
+    const raw = localStorage.getItem("tripwise_trip_currencies");
+    if (!raw) {
+      return;
+    }
+    try {
+      setTripCurrencies(JSON.parse(raw));
+    } catch {
+      setTripCurrencies({});
+    }
+  }, []);
+
+  useEffect(() => {
+    if (payerDrafts.length === 0) {
+      return;
+    }
+    const total = parseMoney(expenseAmount);
+    setPayerDrafts((current) => {
+      if (current.length === 0) {
+        return current;
+      }
+      const lastIndex = current.length - 1;
+      const othersTotal = current.slice(0, lastIndex).reduce((acc, payer) => acc + parseMoney(payer.amountPaid), 0);
+      const remainder = toMoney(Math.max(0, total - othersTotal));
+      const currentLastValue = parseMoney(current[lastIndex].amountPaid);
+      if (Math.abs(currentLastValue - remainder) < 0.01) {
+        return current;
+      }
+      const next = [...current];
+      next[lastIndex] = {
+        ...next[lastIndex],
+        amountPaid: remainder.toFixed(2),
+      };
+      return next;
+    });
+  }, [expenseAmount, payerDrafts]);
+
+  useEffect(() => {
+    if (!(splitPreset === "dutch" || splitPreset === "custom" || splitPreset === "selective")) {
+      return;
+    }
+    const total = parseMoney(expenseAmount);
+    setSplitDrafts((current) => {
+      const includedIndexes = current
+        .map((split, index) => ({ split, index }))
+        .filter((item) => item.split.include)
+        .map((item) => item.index);
+      if (includedIndexes.length === 0) {
+        return current;
+      }
+      const lastIndex = includedIndexes[includedIndexes.length - 1];
+      const othersTotal = includedIndexes
+        .filter((index) => index !== lastIndex)
+        .reduce((acc, index) => acc + parseMoney(current[index].amountOwed), 0);
+      const remainder = toMoney(Math.max(0, total - othersTotal));
+      const currentLastValue = parseMoney(current[lastIndex].amountOwed);
+      if (Math.abs(currentLastValue - remainder) < 0.01) {
+        return current;
+      }
+      const next = [...current];
+      next[lastIndex] = {
+        ...next[lastIndex],
+        amountOwed: remainder.toFixed(2),
+      };
+      return next;
+    });
+  }, [expenseAmount, splitPreset, splitDrafts]);
+
+  const acceptedEditableMembers = useMemo(
+    () => members.filter((member) => member.inviteStatus === "accepted" && member.canEdit),
+    [members],
+  );
+
+  const acceptedMemberCount = useMemo(
+    () => members.filter((member) => member.inviteStatus === "accepted").length,
+    [members],
+  );
+
+  const liveLedgerRows = useMemo<LedgerRow[]>(() => {
+    const chronological = [...expenses].sort(
+      (left, right) => new Date(left.created_at).getTime() - new Date(right.created_at).getTime(),
+    );
+    let runningTotal = 0;
+    const rows = chronological.map((expense) => {
+      runningTotal = toMoney(runningTotal + expense.amount);
+      return {
+        expenseId: expense.expense_id,
+        createdAt: expense.created_at,
+        description: expense.description,
+        status: expense.status,
+        splitType: expense.split_type,
+        amount: expense.amount,
+        runningTotal,
+      };
+    });
+    return rows.reverse();
+  }, [expenses]);
+
+  const autoBalancedSplitIndex = useMemo(() => {
+    if (!(splitPreset === "dutch" || splitPreset === "custom" || splitPreset === "selective")) {
+      return -1;
+    }
+    const includedIndexes = splitDrafts
+      .map((split, index) => ({ split, index }))
+      .filter((item) => item.split.include)
+      .map((item) => item.index);
+    if (includedIndexes.length === 0) {
+      return -1;
+    }
+    return includedIndexes[includedIndexes.length - 1];
+  }, [splitDrafts, splitPreset]);
+
+  const payerTotal = useMemo(
+    () => payerDrafts.reduce((acc, payer) => acc + parseMoney(payer.amountPaid), 0),
+    [payerDrafts],
+  );
+
+  const splitAmountTotal = useMemo(
+    () => splitDrafts.reduce((acc, split) => (split.include ? acc + parseMoney(split.amountOwed) : acc), 0),
+    [splitDrafts],
+  );
+
+  function formatMoney(value: number): string {
+    return new Intl.NumberFormat("en-IN", { style: "currency", currency: currentCurrency, maximumFractionDigits: 2 }).format(value);
+  }
+
+  async function loadTrips() {
+    if (!actorIdentifier.trim()) {
+      setError("Active session user not found.");
+      return;
+    }
+    try {
+      setLoading(true);
+      setError("");
+      const result = await fetchJson<{ trips: Trip[] }>("/trips");
+      setTrips(result.trips ?? []);
+      if (result.trips?.length) {
+        const firstId = selectedTripId && result.trips.some((t) => t.trip_id === selectedTripId)
+          ? selectedTripId
+          : result.trips[0].trip_id;
+        setSelectedTripId(firstId);
+        await loadTripDetails(firstId);
+      }
+      setNotice(`Loaded ${result.trips?.length ?? 0} trip(s).`);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Failed to load trips.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadTripDetails(tripId: string) {
+    if (!tripId) {
+      return;
+    }
     try {
       setLoading(true);
       setError("");
@@ -240,152 +525,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [actorIdentifier]);
-
-  const loadTrips = useCallback(async () => {
-    if (!actorIdentifier.trim()) {
-      setError("Active session user not found.");
-      return;
-    }
-    try {
-      setLoading(true);
-      setError("");
-      const result = await fetchJson<{ trips: Trip[] }>("/trips");
-      setTrips(result.trips ?? []);
-      if (result.trips?.length) {
-        const current = selectedTripIdRef.current;
-        const firstId = current && result.trips.some((t) => t.trip_id === current)
-          ? current
-          : result.trips[0].trip_id;
-        setSelectedTripId(firstId);
-        await loadTripDetails(firstId);
-      }
-      setNotice(`Loaded ${result.trips?.length ?? 0} trip(s).`);
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to load trips.");
-    } finally {
-      setLoading(false);
-    }
-  }, [actorIdentifier, loadTripDetails]);
-
-  // Load trips when actorIdentifier becomes available.
-  useEffect(() => {
-    if (!actorIdentifier) return;
-    void loadTrips();
-  }, [actorIdentifier, loadTrips]);
-
-  // Hydrate trip currencies from localStorage.
-  useEffect(() => {
-    const raw = localStorage.getItem("tripwise_trip_currencies");
-    if (!raw) return;
-    try {
-      setTripCurrencies(JSON.parse(raw));
-    } catch {
-      setTripCurrencies({});
-    }
-  }, []);
-
-  // ── Payer auto-balance ───────────────────────────────────
-
-  useEffect(() => {
-    if (payerDrafts.length === 0) return;
-    const total = parseMoney(expenseAmount);
-    setPayerDrafts((current) => {
-      if (current.length === 0) return current;
-      const lastIndex = current.length - 1;
-      const othersTotal = current.slice(0, lastIndex).reduce((acc, payer) => acc + parseMoney(payer.amountPaid), 0);
-      const remainder = toMoney(Math.max(0, total - othersTotal));
-      const currentLastValue = parseMoney(current[lastIndex].amountPaid);
-      if (Math.abs(currentLastValue - remainder) < 0.01) return current;
-      const next = [...current];
-      next[lastIndex] = { ...next[lastIndex], amountPaid: remainder.toFixed(2) };
-      return next;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expenseAmount]);
-
-  // ── Split auto-balance ───────────────────────────────────
-
-  useEffect(() => {
-    if (!(splitPreset === "dutch" || splitPreset === "custom" || splitPreset === "selective")) return;
-    const total = parseMoney(expenseAmount);
-    setSplitDrafts((current) => {
-      const includedIndexes = current
-        .map((split, index) => ({ split, index }))
-        .filter((item) => item.split.include)
-        .map((item) => item.index);
-      if (includedIndexes.length === 0) return current;
-      const lastIndex = includedIndexes[includedIndexes.length - 1];
-      const othersTotal = includedIndexes
-        .filter((index) => index !== lastIndex)
-        .reduce((acc, index) => acc + parseMoney(current[index].amountOwed), 0);
-      const remainder = toMoney(Math.max(0, total - othersTotal));
-      const currentLastValue = parseMoney(current[lastIndex].amountOwed);
-      if (Math.abs(currentLastValue - remainder) < 0.01) return current;
-      const next = [...current];
-      next[lastIndex] = { ...next[lastIndex], amountOwed: remainder.toFixed(2) };
-      return next;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expenseAmount, splitPreset]);
-
-  // ── Derived data ─────────────────────────────────────────
-
-  const acceptedEditableMembers = useMemo(
-    () => members.filter((member) => member.inviteStatus === "accepted" && member.canEdit),
-    [members],
-  );
-
-  const acceptedMemberCount = useMemo(
-    () => members.filter((member) => member.inviteStatus === "accepted").length,
-    [members],
-  );
-
-  const liveLedgerRows = useMemo<LedgerRow[]>(() => {
-    const chronological = [...expenses].sort(
-      (left, right) => new Date(left.created_at).getTime() - new Date(right.created_at).getTime(),
-    );
-    let runningTotal = 0;
-    const rows = chronological.map((expense) => {
-      runningTotal = toMoney(runningTotal + expense.amount);
-      return {
-        expenseId: expense.expense_id,
-        createdAt: expense.created_at,
-        description: expense.description,
-        status: expense.status,
-        splitType: expense.split_type,
-        amount: expense.amount,
-        runningTotal,
-      };
-    });
-    return rows.reverse();
-  }, [expenses]);
-
-  const autoBalancedSplitIndex = useMemo(() => {
-    if (!(splitPreset === "dutch" || splitPreset === "custom" || splitPreset === "selective")) return -1;
-    const includedIndexes = splitDrafts
-      .map((split, index) => ({ split, index }))
-      .filter((item) => item.split.include)
-      .map((item) => item.index);
-    if (includedIndexes.length === 0) return -1;
-    return includedIndexes[includedIndexes.length - 1];
-  }, [splitDrafts, splitPreset]);
-
-  const payerTotal = useMemo(
-    () => payerDrafts.reduce((acc, payer) => acc + parseMoney(payer.amountPaid), 0),
-    [payerDrafts],
-  );
-
-  const splitAmountTotal = useMemo(
-    () => splitDrafts.reduce((acc, split) => (split.include ? acc + parseMoney(split.amountOwed) : acc), 0),
-    [splitDrafts],
-  );
-
-  function formatMoney(value: number): string {
-    return new Intl.NumberFormat("en-IN", { style: "currency", currency: currentCurrency, maximumFractionDigits: 2 }).format(value);
   }
-
-  // ── Expense composer ─────────────────────────────────────
 
   function openExpenseComposer() {
     if (!selectedTripId) {
@@ -396,6 +536,7 @@ export default function DashboardPage() {
       setError("No accepted editable members available.");
       return;
     }
+
     const defaultMember = acceptedEditableMembers[0].memberId;
     setSplitPreset("equal");
     setExpenseDescription("");
@@ -414,7 +555,9 @@ export default function DashboardPage() {
 
   function addPayerRow() {
     const fallbackMember = acceptedEditableMembers.find((m) => !payerDrafts.some((p) => p.memberId === m.memberId));
-    if (!fallbackMember) return;
+    if (!fallbackMember) {
+      return;
+    }
     setPayerDrafts((current) => [...current, { memberId: fallbackMember.memberId, amountPaid: "0" }]);
   }
 
@@ -443,8 +586,8 @@ export default function DashboardPage() {
       .map((payer) => ({ member_id: payer.memberId, amount_paid: Number(payer.amountPaid) }))
       .filter((payer) => payer.member_id && payer.amount_paid > 0);
 
-    const paidTotal = paidBy.reduce((acc, row) => acc + row.amount_paid, 0);
-    if (paidBy.length === 0 || Math.abs(paidTotal - amount) > 0.01) {
+    const payerTotal = paidBy.reduce((acc, row) => acc + row.amount_paid, 0);
+    if (paidBy.length === 0 || Math.abs(payerTotal - amount) > 0.01) {
       setError("Payer rows must sum exactly to total amount.");
       return;
     }
@@ -459,19 +602,27 @@ export default function DashboardPage() {
         splitTypeForApi = "selective";
         splitDrafts.forEach((row) => {
           const amountOwed = row.amountOwed.trim() ? Number(row.amountOwed) : undefined;
-          splitsForApi.push({ member_id: row.memberId, amount_owed: amountOwed, excluded: !row.include });
+          splitsForApi.push({
+            member_id: row.memberId,
+            amount_owed: amountOwed,
+            excluded: !row.include,
+          });
         });
       }
     } else if (splitPreset === "dutch") {
       splitTypeForApi = "unequal";
       splitDrafts.forEach((row) => {
-        if (!row.include) return;
+        if (!row.include) {
+          return;
+        }
         splitsForApi.push({ member_id: row.memberId, amount_owed: Number(row.amountOwed), excluded: false });
       });
     } else if (splitPreset === "percentage") {
       splitTypeForApi = "percentage";
       splitDrafts.forEach((row) => {
-        if (!row.include) return;
+        if (!row.include) {
+          return;
+        }
         splitsForApi.push({ member_id: row.memberId, percentage: Number(row.percentage), excluded: false });
       });
     } else if (splitPreset === "selective") {
@@ -483,7 +634,9 @@ export default function DashboardPage() {
     } else {
       splitTypeForApi = "custom";
       splitDrafts.forEach((row) => {
-        if (!row.include) return;
+        if (!row.include) {
+          return;
+        }
         splitsForApi.push({ member_id: row.memberId, amount_owed: Number(row.amountOwed), excluded: false });
       });
     }
@@ -551,14 +704,18 @@ export default function DashboardPage() {
   }
 
   function onChangeTripCurrency(value: string) {
-    if (!selectedTripId) return;
+    if (!selectedTripId) {
+      return;
+    }
     const next = { ...tripCurrencies, [selectedTripId]: value };
     setTripCurrencies(next);
     localStorage.setItem("tripwise_trip_currencies", JSON.stringify(next));
   }
 
   async function onCreatePublicSummaryLink() {
-    if (!selectedTripId) return;
+    if (!selectedTripId) {
+      return;
+    }
     try {
       setLoading(true);
       const result = await fetchJson<{ url: string }>("/reports/public/summary-link", {
@@ -568,7 +725,7 @@ export default function DashboardPage() {
           actor_identifier: actorIdentifier.trim(),
         }),
       });
-      const root = typeof window !== "undefined" ? window.location.origin : "";
+      const root = (typeof window !== "undefined" ? window.location.origin : "");
       setPublicSummaryLink(`${root}${result.url}`);
       setNotice("Public read-only summary link created.");
     } catch (requestError) {
@@ -592,11 +749,13 @@ export default function DashboardPage() {
       setError("Dispute comment must be at least 5 characters.");
       return;
     }
+
     const amountValue = disputeAmount.trim() ? Number(disputeAmount) : undefined;
     if (amountValue !== undefined && (Number.isNaN(amountValue) || amountValue <= 0)) {
       setError("Disputed amount must be greater than 0.");
       return;
     }
+
     try {
       setLoading(true);
       setError("");
@@ -622,10 +781,13 @@ export default function DashboardPage() {
   }
 
   async function onSetDisputeState(disputeId: string, action: "review" | "resolve") {
-    if (!selectedTripId) return;
+    if (!selectedTripId) {
+      return;
+    }
     try {
       setLoading(true);
       setError("");
+
       if (action === "review") {
         await fetchJson(`/disputes/${disputeId}/review`, {
           method: "POST",
@@ -649,6 +811,7 @@ export default function DashboardPage() {
           }),
         });
       }
+
       await loadTripDetails(selectedTripId);
       setNotice(action === "review" ? "Dispute moved to in-review." : "Dispute resolved.");
     } catch (requestError) {
@@ -664,11 +827,13 @@ export default function DashboardPage() {
       setError("Trip name cannot be empty.");
       return;
     }
+
     const drafts = memberDrafts.map((entry) => ({
       name: entry.name.trim(),
       email: entry.email.trim(),
       registered: entry.registered,
     }));
+
     if (createMode === "self") {
       if (drafts.some((entry) => !entry.name)) {
         setError("Please provide names for all members.");
@@ -680,6 +845,7 @@ export default function DashboardPage() {
         return;
       }
     }
+
     try {
       setLoading(true);
       setError("");
@@ -698,12 +864,11 @@ export default function DashboardPage() {
       setTripName("");
       setNewTripMemberCount(1);
       setMemberDrafts([{ name: "", email: "", registered: null }]);
-      // Set the new trip as selected before loadTrips so it auto-loads its details.
+      await loadTrips();
       if (response.trip?.trip_id) {
         setSelectedTripId(response.trip.trip_id);
-        selectedTripIdRef.current = response.trip.trip_id;
+        await loadTripDetails(response.trip.trip_id);
       }
-      await loadTrips();
       setNotice(createMode === "self" ? "Trip created for admin-only work (no invites sent)." : "Trip created and invites sent to registered members.");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to create trip.");
@@ -714,7 +879,9 @@ export default function DashboardPage() {
 
   async function checkMemberStatus(index: number) {
     const email = memberDrafts[index]?.email?.trim();
-    if (!email) return;
+    if (!email) {
+      return;
+    }
     try {
       const result = await fetchJson<{ registered: boolean }>("/auth/identifier/status", {
         method: "POST",
@@ -739,7 +906,9 @@ export default function DashboardPage() {
   }
 
   async function onTripLifecycle(action: "close" | "archive") {
-    if (!selectedTripId) return;
+    if (!selectedTripId) {
+      return;
+    }
     try {
       setLoading(true);
       setError("");
@@ -748,6 +917,7 @@ export default function DashboardPage() {
         body: JSON.stringify({ actor_identifier: actorIdentifier.trim() }),
       });
       await loadTrips();
+      await loadTripDetails(selectedTripId);
       setNotice(action === "close" ? "Trip closed." : "Trip archived.");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : `Failed to ${action} trip.`);
@@ -757,7 +927,9 @@ export default function DashboardPage() {
   }
 
   async function onReviewExpense(expenseId: string, action: "approve" | "reject") {
-    if (!selectedTripId) return;
+    if (!selectedTripId) {
+      return;
+    }
     try {
       setLoading(true);
       setError("");
@@ -779,10 +951,12 @@ export default function DashboardPage() {
       setError("Select a trip first.");
       return;
     }
+
     const recipients = reportEmailsCsv
       .split(",")
       .map((item) => item.trim())
       .filter(Boolean);
+
     try {
       setLoading(true);
       setError("");
@@ -806,7 +980,9 @@ export default function DashboardPage() {
   }
 
   async function onMarkPaid(row: SettlementRow) {
-    if (!selectedTripId) return;
+    if (!selectedTripId) {
+      return;
+    }
     try {
       setLoading(true);
       setError("");
@@ -830,99 +1006,6 @@ export default function DashboardPage() {
     }
   }
 
-  async function onInviteMember(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selectedTripId) {
-      setError("Select a trip first.");
-      return;
-    }
-    if (!inviteIdentifier.trim()) {
-      setError("Invite identifier is required.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError("");
-      await fetchJson(`/trips/${selectedTripId}/members/invite`, {
-        method: "POST",
-        body: JSON.stringify({ identifier: inviteIdentifier.trim(), actor_identifier: actorIdentifier.trim() }),
-      });
-      setInviteIdentifier("");
-      await loadTripDetails(selectedTripId);
-      setNotice("Member invited.");
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to invite member.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function onMemberAction(memberId: string, action: "accepted" | "rejected" | "reinvite" | "remove") {
-    if (!selectedTripId) return;
-    try {
-      setLoading(true);
-      setError("");
-      if (action === "accepted" || action === "rejected") {
-        await fetchJson(`/trips/members/${memberId}/respond`, {
-          method: "POST",
-          body: JSON.stringify({ action, actor_identifier: actorIdentifier.trim() }),
-        });
-      } else if (action === "reinvite") {
-        await fetchJson(`/trips/members/${memberId}/reinvite`, { method: "POST", body: JSON.stringify({ actor_identifier: actorIdentifier.trim() }) });
-      } else {
-        await fetchJson(`/trips/members/${memberId}`, { method: "DELETE" });
-      }
-      await loadTripDetails(selectedTripId);
-      setNotice(`Member action complete: ${action}.`);
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to update member.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function onInviteAll(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selectedTripId) {
-      setError("Select a trip first.");
-      return;
-    }
-    const identifiers = bulkInviteIdentifiers
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-    if (identifiers.length === 0) {
-      setError("Provide at least one identifier for invite-all.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError("");
-      const response = await fetchJson<{
-        summary: { invitedCount: number; skippedCount: number; memberCount: number };
-      }>(`/trips/${selectedTripId}/members/invite-all`, {
-        method: "POST",
-        body: JSON.stringify({
-          identifiers,
-          actor_identifier: actorIdentifier.trim(),
-        }),
-      });
-      setBulkInviteIdentifiers("");
-      await loadTripDetails(selectedTripId);
-      setNotice(
-        `Invite-all complete. Invited: ${response.summary?.invitedCount ?? 0}, skipped: ${response.summary?.skippedCount ?? 0}.`,
-      );
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to invite all members.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // ── Render ───────────────────────────────────────────────
-
   return (
     <main className="dashboard-shell">
       <div className="dashboard-backdrop" aria-hidden="true" />
@@ -933,29 +1016,7 @@ export default function DashboardPage() {
             <h1>Live Operations</h1>
             <p className="dashboard-subcopy">A panoptic view of expenses, perfectly coordinated splits, and precise resolution.</p>
           </div>
-          <div className="row-actions" style={{ alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
-            <select
-              className="tw-input"
-              value={selectedTripId}
-              onChange={(event) => {
-                const nextTripId = event.target.value;
-                setSelectedTripId(nextTripId);
-                if (nextTripId) {
-                  void loadTripDetails(nextTripId);
-                }
-              }}
-              title="Active Trip"
-              aria-label="Active Trip"
-              disabled={loading}
-              style={{ minWidth: "200px", margin: 0 }}
-            >
-              <option value="">-- Select a Trip --</option>
-              {trips.map((trip) => (
-                <option key={trip.trip_id} value={trip.trip_id}>
-                  {trip.name} ({trip.status})
-                </option>
-              ))}
-            </select>
+          <div className="row-actions">
             <button className="tw-btn tw-btn-muted" disabled={loading} onClick={() => void loadTrips()}>
               {loading ? "Loading..." : "Refresh"}
             </button>
@@ -1024,7 +1085,9 @@ export default function DashboardPage() {
                     const count = Math.max(1, Math.min(20, Number(event.target.value) || 1));
                     setNewTripMemberCount(count);
                     setMemberDrafts((current) => {
-                      if (current.length === count) return current;
+                      if (current.length === count) {
+                        return current;
+                      }
                       if (current.length < count) {
                         return [...current, ...Array.from({ length: count - current.length }, () => ({ name: "", email: "", registered: null }))];
                       }
@@ -1112,39 +1175,10 @@ export default function DashboardPage() {
             </article>
 
             <article className="widget-card">
-              <h2>Invite Member</h2>
-              <form className="stack-form" onSubmit={onInviteMember}>
-                <label className="field-label">Email</label>
-                <input
-                  className="tw-input"
-                  value={inviteIdentifier}
-                  onChange={(event) => setInviteIdentifier(event.target.value)}
-                  placeholder="member@tripwise.dev"
-                />
-                <button className="tw-btn" type="submit" disabled={loading || !selectedTripId || !inviteIdentifier.trim()}>
-                  Invite
-                </button>
-              </form>
-              <form className="stack-form top-gap" onSubmit={onInviteAll}>
-                <label className="field-label">Bulk Invite (comma-separated emails)</label>
-                <textarea
-                  className="tw-input"
-                  rows={2}
-                  value={bulkInviteIdentifiers}
-                  onChange={(event) => setBulkInviteIdentifiers(event.target.value)}
-                  placeholder="a@tripwise.dev, b@tripwise.dev"
-                />
-                <button className="tw-btn tw-btn-muted" type="submit" disabled={loading || !selectedTripId}>
-                  Send Invite To All
-                </button>
-              </form>
-            </article>
-
-            <article className="widget-card">
-              <div style={{ marginBottom: "12px" }}>
-                <label className="field-label">My Role</label>
-                <p className="empty-copy">{uiRoleLabel(selectedTrip?.my_role)}</p>
-              </div>
+                    <div>
+                      <label>My Role</label>
+                      <p>{uiRoleLabel(selectedTrip?.my_role)}</p>
+                    </div>
               <h2>Members</h2>
               {members.length === 0 ? <p className="empty-copy">No members loaded.</p> : null}
               {members.map((member) => (
@@ -1152,36 +1186,6 @@ export default function DashboardPage() {
                   <div>
                     <strong>{memberLabel(member)}</strong>
                     <p>{member.role} | {member.inviteStatus}</p>
-                  </div>
-                  <div className="row-actions row-actions-wrap top-gap">
-                    <button
-                      className="tw-btn tw-btn-small"
-                      onClick={() => void onMemberAction(member.memberId, "accepted")}
-                      disabled={loading || member.inviteStatus === "accepted"}
-                    >
-                      Accept
-                    </button>
-                    <button
-                      className="tw-btn tw-btn-small tw-btn-muted"
-                      onClick={() => void onMemberAction(member.memberId, "rejected")}
-                      disabled={loading || member.inviteStatus === "rejected"}
-                    >
-                      Reject
-                    </button>
-                    <button
-                      className="tw-btn tw-btn-small tw-btn-muted"
-                      onClick={() => void onMemberAction(member.memberId, "reinvite")}
-                      disabled={loading}
-                    >
-                      Reinvite
-                    </button>
-                    <button
-                      className="tw-btn tw-btn-small tw-btn-muted"
-                      onClick={() => void onMemberAction(member.memberId, "remove")}
-                      disabled={loading}
-                    >
-                      Remove
-                    </button>
                   </div>
                 </div>
               ))}
@@ -1478,6 +1482,30 @@ export default function DashboardPage() {
                 <p className="composer-warning-copy">
                   Please choose a trip before creating this expense.
                 </p>
+              ) : null}
+              {trips.length > 1 ? (
+                <>
+                  <p className="empty-copy">Multiple trips are available. Choose any one trip before saving this expense.</p>
+                  <select
+                    className="tw-input"
+                    value={selectedTripId}
+                    onChange={(event) => {
+                      const nextTripId = event.target.value;
+                      setSelectedTripId(nextTripId);
+                      void loadTripDetails(nextTripId);
+                    }}
+                    title="Composer trip selection"
+                    aria-label="Composer trip selection"
+                    disabled={loading}
+                  >
+                    <option value="">Select a trip</option>
+                    {trips.map((trip) => (
+                      <option key={trip.trip_id} value={trip.trip_id}>
+                        {trip.name} ({trip.status})
+                      </option>
+                    ))}
+                  </select>
+                </>
               ) : null}
             </section>
 

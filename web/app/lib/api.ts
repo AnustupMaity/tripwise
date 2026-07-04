@@ -1,13 +1,23 @@
-/**
- * Legacy API helper used by auth pages (login / register).
- *
- * Auth pages don't need session-token injection (the user
- * isn't logged in yet), so they use this simpler wrapper.
- * The resolveApiBase function is now imported from api-base
- * instead of being duplicated here.
- */
+const LOCAL_API_BASE = "http://localhost:8000/api/v1";
+const PROD_API_BASE = "https://tripwise-backend-3nm3.onrender.com/api/v1";
 
-import { resolveApiBase } from "./api-base";
+function resolveApiBase(): string {
+  const configuredBase = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+  if (configuredBase) {
+    return configuredBase;
+  }
+
+  if (typeof window === "undefined") {
+    return LOCAL_API_BASE;
+  }
+
+  const { hostname } = window.location;
+  if (hostname === "localhost" || hostname === "127.0.0.1") {
+    return LOCAL_API_BASE;
+  }
+
+  return PROD_API_BASE;
+}
 
 function formatApiError(detail: unknown, fallback: string): string {
   if (typeof detail === "string" && detail.trim()) {

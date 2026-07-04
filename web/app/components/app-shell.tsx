@@ -1,42 +1,106 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { PropsWithChildren } from "react";
-import { useSession } from "../lib/session-context";
+import { usePathname, useRouter } from "next/navigation";
+import { PropsWithChildren, useEffect, useRef, useState } from "react";
+import { resolveApiBase } from "../lib/api-base";
+
+const API_BASE = resolveApiBase();
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/trips", label: "Trips" },
+  { href: "/invite-center", label: "Invite Center" },
+  { href: "/past-trips", label: "Past Trips" },
 ];
 
 export function AppShell({ children }: PropsWithChildren) {
   const pathname = usePathname();
-  const { loading, isAuthenticated, logout } = useSession();
+  const router = useRouter();
   const hideShell = pathname === "/" || pathname.startsWith("/auth/");
+  const [authReady, setAuthReady] = useState(false);
+  const hasValidatedForMain = useRef(false);
 
-  // Public routes – no auth required, render children directly.
+  function logout() {
+    localStorage.removeItem("tripwise_session_token");
+    localStorage.removeItem("tripwise_user_id");
+    localStorage.removeItem("tripwise_trip_currencies");
+    router.push("/auth/login");
+  }
+
+  useEffect(() => {
+    if (hideShell) {
+      setAuthReady(true);
+      hasValidatedForMain.current = false;
+      return;
+    }
+
+    let active = true;
+
+    if (!hasValidatedForMain.current) {
+      setAuthReady(false);
+    }
+
+    async function validateProtectedSession(isInitial: boolean) {
+      const token = localStorage.getItem("tripwise_session_token") ?? "";
+      if (!token) {
+        localStorage.removeItem("tripwise_user_id");
+        router.replace("/auth/login");
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}/auth/session/validate`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-session-token": token,
+          },
+          body: JSON.stringify({ session_token: token }),
+        });
+
+        if (!response.ok) {
+          throw new Error("session invalid");
+        }
+
+        if (active) {
+          hasValidatedForMain.current = true;
+          if (isInitial) {
+            setAuthReady(true);
+          }
+        }
+      } catch {
+        if (active) {
+          localStorage.removeItem("tripwise_session_token");
+          localStorage.removeItem("tripwise_user_id");
+          router.replace("/auth/login");
+        }
+      }
+    }
+
+    if (!hasValidatedForMain.current) {
+      void validateProtectedSession(true);
+    }
+
+    const intervalId = setInterval(() => {
+      void validateProtectedSession(false);
+    }, 5 * 60 * 1000);
+
+    return () => {
+      active = false;
+      clearInterval(intervalId);
+    };
+  }, [hideShell, pathname, router]);
+
   if (hideShell) {
     return <>{children}</>;
   }
 
-  // Protected route – still loading initial session validation.
-  if (loading) {
+  if (!authReady) {
     return (
       <main className="screen-root">
         <section className="screen-card">
           <p className="empty-copy">Validating session...</p>
-        </section>
-      </main>
-    );
-  }
-
-  // Protected route – not authenticated → context already redirects,
-  // but guard the UI just in case.
-  if (!isAuthenticated) {
-    return (
-      <main className="screen-root">
-        <section className="screen-card">
-          <p className="empty-copy">Redirecting to login...</p>
         </section>
       </main>
     );

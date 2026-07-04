@@ -2,7 +2,6 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { Playfair_Display, Epilogue } from "next/font/google";
 import { AppShell } from "./components/app-shell";
-import { SessionProvider } from "./lib/session-context";
 
 const displayFont = Playfair_Display({
   subsets: ["latin"],
@@ -23,9 +22,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${displayFont.variable} ${epilogue.variable}`}>
       <body>
-        <SessionProvider>
-          <AppShell>{children}</AppShell>
-        </SessionProvider>
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );

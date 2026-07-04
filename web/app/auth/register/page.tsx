@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { apiRequest } from "../../lib/api";
-import { useSession } from "../../lib/session-context";
 import { ensureGoogleInitialized, renderGoogleButton, setGoogleCredentialHandler } from "../../lib/google-gsi";
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
@@ -15,7 +14,6 @@ function storeSession(sessionToken: string, userId: string) {
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { refreshProfile } = useSession();
   const [name, setName] = useState("");
   const [nickname, setNickname] = useState("");
   const [phone, setPhone] = useState("");
@@ -53,7 +51,7 @@ export default function RegisterPage() {
           body: JSON.stringify({ id_token: credential }),
         });
         storeSession(data.sessionToken, data.userId);
-        window.location.href = "/dashboard";
+        router.push("/dashboard");
       } catch (requestError) {
         setError(requestError instanceof Error ? requestError.message : "Google signup failed.");
       } finally {
@@ -121,7 +119,8 @@ export default function RegisterPage() {
         body: JSON.stringify({ email, otp }),
       });
       storeSession(data.sessionToken, data.userId);
-      window.location.href = "/dashboard";
+      router.push("/dashboard");
+      setOtp("");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to verify registration OTP.");
     } finally {
