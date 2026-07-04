@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { resolveApiBase } from "../../../lib/api-base";
+import { getCached, setCached } from "../../../lib/cache-store";
+import { CheckIcon, AlertIcon, RefreshIcon, PlusIcon, UserIcon, TrashIcon, SparklesIcon } from "../../../components/icons";
 
 type Trip = {
   trip_id: string;
@@ -78,9 +80,12 @@ export default function TripsPage() {
   const [createMode, setCreateMode] = useState<CreateMode>("dynamic");
   const [newTripMemberCount, setNewTripMemberCount] = useState(1);
   const [memberDrafts, setMemberDrafts] = useState<MemberDraft[]>([{ name: "", email: "", registered: null }]);
-  const [trips, setTrips] = useState<Trip[]>([]);
-  const [selectedTripId, setSelectedTripId] = useState("");
-  const [members, setMembers] = useState<Member[]>([]);
+  const [trips, setTrips] = useState<Trip[]>(() => getCached("tw_trips", []));
+  const [selectedTripId, setSelectedTripId] = useState(() => {
+    const cached = getCached<Trip[]>("tw_trips", []);
+    return cached.length > 0 ? cached[0].trip_id : "";
+  });
+  const [members, setMembers] = useState<Member[]>(() => getCached("tw_members_init", []));
   const [renameValue, setRenameValue] = useState("");
   const [inviteIdentifier, setInviteIdentifier] = useState("");
   const [bulkInviteIdentifiers, setBulkInviteIdentifiers] = useState("");
@@ -142,11 +147,13 @@ export default function TripsPage() {
   }, [autoRefreshEnabled, selectedTripId, actorIdentifier]);
 
   async function loadTrips(options?: { silent?: boolean }) {
+    const hasCachedTrips = getCached<Trip[]>("tw_trips", []).length > 0;
     try {
-      setLoading(true);
+      if (!hasCachedTrips && !options?.silent) setLoading(true);
       setError("");
       const payload = await fetchJson<{ trips: Trip[] }>("/trips");
       const nextTrips = payload.trips ?? [];
+      setCached("tw_trips", nextTrips);
       setTrips(nextTrips);
       setLastRefreshedAt(new Date());
       if (!options?.silent) {
@@ -176,7 +183,9 @@ export default function TripsPage() {
       return;
     }
     const payload = await fetchJson<{ members: Member[] }>(`/trips/${tripId}/members`);
-    setMembers(payload.members ?? []);
+    const fetchedMembers = payload.members ?? [];
+    setCached("tw_members_" + tripId, fetchedMembers);
+    setMembers(fetchedMembers);
   }
 
   async function onCreateTrip(event: FormEvent<HTMLFormElement>) {
@@ -672,8 +681,8 @@ export default function TripsPage() {
           {lastRefreshedAt ? `Last refreshed at ${lastRefreshedAt.toLocaleTimeString()}` : "Not refreshed yet."}
         </p>
 
-        {error ? <p className="flash flash-error">{error}</p> : null}
-        {notice ? <p className="flash flash-ok">{notice}</p> : null}
+        {error ? <div className="os-toast" style={{ borderColor: "#FB7185", background: "rgba(24, 10, 15, 0.95)" }}><AlertIcon size={18} style={{ color: "#FB7185" }} /><span>{error}</span></div> : null}
+        {notice ? <div className="os-toast" style={{ borderColor: "var(--accent)" }}><CheckIcon size={18} style={{ color: "var(--accent)" }} /><span>{notice}</span></div> : null}
       </section>
     </main>
   );

@@ -2,6 +2,8 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { resolveApiBase } from "../../../lib/api-base";
+import { getCached, setCached } from "../../../lib/cache-store";
+import { CheckIcon, AlertIcon, RefreshIcon } from "../../../components/icons";
 
 type Trip = {
   trip_id: string;
@@ -58,9 +60,12 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
 export default function InviteCenterPage() {
   const [actorIdentifier, setActorIdentifier] = useState("");
   const [sessionProfile, setSessionProfile] = useState<SessionProfile>({});
-  const [trips, setTrips] = useState<Trip[]>([]);
-  const [selectedTripId, setSelectedTripId] = useState("");
-  const [members, setMembers] = useState<Member[]>([]);
+  const [trips, setTrips] = useState<Trip[]>(() => getCached("tw_trips", []));
+  const [selectedTripId, setSelectedTripId] = useState(() => {
+    const cached = getCached<Trip[]>("tw_trips", []);
+    return cached.length > 0 ? cached[0].trip_id : "";
+  });
+  const [members, setMembers] = useState<Member[]>(() => getCached("tw_members_init", []));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -106,11 +111,13 @@ export default function InviteCenterPage() {
   }, []);
 
   async function loadTrips() {
+    const hasCachedTrips = getCached<Trip[]>("tw_trips", []).length > 0;
     try {
-      setLoading(true);
+      if (!hasCachedTrips) setLoading(true);
       setError("");
       const payload = await fetchJson<{ trips: Trip[] }>("/trips");
       const nextTrips = payload.trips ?? [];
+      setCached("tw_trips", nextTrips);
       setTrips(nextTrips);
 
       if (nextTrips.length === 0) {
@@ -132,7 +139,9 @@ export default function InviteCenterPage() {
 
   async function loadMembers(tripId: string) {
     const payload = await fetchJson<{ members: Member[] }>(`/trips/${tripId}/members`);
-    setMembers(payload.members ?? []);
+    const fetchedMembers = payload.members ?? [];
+    setCached("tw_members_" + tripId, fetchedMembers);
+    setMembers(fetchedMembers);
     setSelection({});
   }
 
@@ -321,8 +330,8 @@ export default function InviteCenterPage() {
           </div>
         </article>
 
-        {error ? <p className="flash flash-error">{error}</p> : null}
-        {notice ? <p className="flash flash-ok">{notice}</p> : null}
+        {error ? <div className="os-toast" style={{ borderColor: "#FB7185", background: "rgba(24, 10, 15, 0.95)" }}><AlertIcon size={18} style={{ color: "#FB7185" }} /><span>{error}</span></div> : null}
+        {notice ? <div className="os-toast" style={{ borderColor: "var(--accent)" }}><CheckIcon size={18} style={{ color: "var(--accent)" }} /><span>{notice}</span></div> : null}
       </section>
     </main>
   );

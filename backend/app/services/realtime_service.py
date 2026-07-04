@@ -39,7 +39,7 @@ class RealtimeService:
             if len(self._events) > 2000:
                 self._events = self._events[-2000:]
 
-        if settings.supabase_db_url and psycopg is not None:
+        if not settings.use_inmemory_stores and settings.supabase_db_url and psycopg is not None:
             self._publish_postgres_notify(event)
 
         return self._serialize_event(event)

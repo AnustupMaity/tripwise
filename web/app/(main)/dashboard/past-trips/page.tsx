@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { resolveApiBase } from "../../../lib/api-base";
+import { getCached, setCached } from "../../../lib/cache-store";
+import { AlertIcon, RefreshIcon } from "../../../components/icons";
 
 type Trip = {
   trip_id: string;
@@ -40,13 +42,13 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: {
       "Content-Type": "application/json",
-      ...(sessionToken ? { "x-session-token": sessionToken } : {}),
-      ...(init?.headers ?? {}),
+      ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}),
+      ...init?.headers,
     },
   });
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `Request failed (${response.status})`);
+    const errorBody = await response.text();
+    throw new Error(`API ${response.status}: ${errorBody || response.statusText}`);
   }
   return response.json() as Promise<T>;
 }
@@ -54,8 +56,8 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
 export default function PastTripsPage() {
   const [actorIdentifier, setActorIdentifier] = useState("");
   const [sessionProfile, setSessionProfile] = useState<SessionProfile>({});
-  const [pastTrips, setPastTrips] = useState<Trip[]>([]);
-  const [tripReports, setTripReports] = useState<Record<string, ReportItem[]>>({});
+  const [pastTrips, setPastTrips] = useState<Trip[]>(() => getCached("tw_past_trips", []));
+  const [tripReports, setTripReports] = useState<Record<string, ReportItem[]>>(() => getCached("tw_past_reports", {}));
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -89,11 +91,13 @@ export default function PastTripsPage() {
   }, [actorIdentifier]);
 
   async function loadPastTrips() {
+    const hasCached = getCached<Trip[]>("tw_past_trips", []).length > 0;
     try {
-      setLoading(true);
+      if (!hasCached) setLoading(true);
       setError("");
       const tripsPayload = await fetchJson<{ trips: Trip[] }>("/trips");
       const pastOnly = (tripsPayload.trips ?? []).filter((trip) => trip.status === "past");
+      setCached("tw_past_trips", pastOnly);
       setPastTrips(pastOnly);
 
       const reportEntries = await Promise.all(
@@ -107,6 +111,7 @@ export default function PastTripsPage() {
       for (const [tripId, reports] of reportEntries) {
         reportMap[tripId] = reports;
       }
+      setCached("tw_past_reports", reportMap);
       setTripReports(reportMap);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to load past trips.");
@@ -136,7 +141,7 @@ export default function PastTripsPage() {
           </button>
         </section>
 
-        {error ? <p className="flash flash-error">{error}</p> : null}
+        {error ? <div className="os-toast" style={{ borderColor: "#FB7185", background: "rgba(24, 10, 15, 0.95)" }}><AlertIcon size={18} style={{ color: "#FB7185" }} /><span>{error}</span></div> : null}
 
         <div className="reports-list reports-top-gap">
           {pastTrips.length === 0 ? <p className="empty-copy">No archived trips found.</p> : null}

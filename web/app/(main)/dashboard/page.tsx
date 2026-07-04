@@ -2,6 +2,8 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { resolveApiBase } from "../../lib/api-base";
+import { getCached, setCached } from "../../lib/cache-store";
+import { PlusIcon, CheckIcon, AlertIcon, WalletIcon, SparklesIcon, RefreshIcon, ShareIcon, UserIcon, ArrowRightIcon } from "../../components/icons";
 
 type Trip = {
   trip_id: string;
@@ -176,15 +178,18 @@ export default function DashboardPage() {
   const [createMode, setCreateMode] = useState<CreateMode>("dynamic");
   const [newTripMemberCount, setNewTripMemberCount] = useState(1);
   const [memberDrafts, setMemberDrafts] = useState<MemberDraft[]>([{ name: "", email: "", registered: null }]);
-  const [trips, setTrips] = useState<Trip[]>([]);
-  const [selectedTripId, setSelectedTripId] = useState("");
-  const [members, setMembers] = useState<Member[]>([]);
-  const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
-  const [pendingExpenses, setPendingExpenses] = useState<PendingExpense[]>([]);
-  const [disputes, setDisputes] = useState<DisputeItem[]>([]);
-  const [settlementRows, setSettlementRows] = useState<SettlementRow[]>([]);
-  const [reports, setReports] = useState<ReportItem[]>([]);
-  const [notifications, setNotifications] = useState<InAppNotification[]>([]);
+  const [trips, setTrips] = useState<Trip[]>(() => getCached("tw_trips", []));
+  const [selectedTripId, setSelectedTripId] = useState(() => {
+    const cached = getCached<Trip[]>("tw_trips", []);
+    return cached.length > 0 ? cached[0].trip_id : "";
+  });
+  const [members, setMembers] = useState<Member[]>(() => getCached("tw_members_init", []));
+  const [expenses, setExpenses] = useState<ExpenseItem[]>(() => getCached("tw_expenses_init", []));
+  const [pendingExpenses, setPendingExpenses] = useState<PendingExpense[]>(() => getCached("tw_pending_init", []));
+  const [disputes, setDisputes] = useState<DisputeItem[]>(() => getCached("tw_disputes_init", []));
+  const [settlementRows, setSettlementRows] = useState<SettlementRow[]>(() => getCached("tw_settlement_init", []));
+  const [reports, setReports] = useState<ReportItem[]>(() => getCached("tw_reports_init", []));
+  const [notifications, setNotifications] = useState<InAppNotification[]>(() => getCached("tw_notifications_init", []));
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileName, setProfileName] = useState("");
@@ -464,19 +469,22 @@ export default function DashboardPage() {
       setError("Active session user not found.");
       return;
     }
+    const hasCachedTrips = getCached<Trip[]>("tw_trips", []).length > 0;
     try {
-      setLoading(true);
+      if (!hasCachedTrips) setLoading(true);
       setError("");
       const result = await fetchJson<{ trips: Trip[] }>("/trips");
-      setTrips(result.trips ?? []);
-      if (result.trips?.length) {
-        const firstId = selectedTripId && result.trips.some((t) => t.trip_id === selectedTripId)
+      const fetchedTrips = result.trips ?? [];
+      setCached("tw_trips", fetchedTrips);
+      setTrips(fetchedTrips);
+      if (fetchedTrips.length) {
+        const firstId = selectedTripId && fetchedTrips.some((t) => t.trip_id === selectedTripId)
           ? selectedTripId
-          : result.trips[0].trip_id;
+          : fetchedTrips[0].trip_id;
         setSelectedTripId(firstId);
         await loadTripDetails(firstId);
       }
-      setNotice(`Loaded ${result.trips?.length ?? 0} trip(s).`);
+      setNotice(`Loaded ${fetchedTrips.length} trip(s).`);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to load trips.");
     } finally {
@@ -488,8 +496,9 @@ export default function DashboardPage() {
     if (!tripId) {
       return;
     }
+    const hasCachedDetails = getCached<Member[]>("tw_members_" + tripId, []).length > 0;
     try {
-      setLoading(true);
+      if (!hasCachedDetails) setLoading(true);
       setError("");
 
       const [memberData, expenseData, pendingData, disputeData, settlementData, reportData, notificationData] = await Promise.all([
@@ -505,6 +514,14 @@ export default function DashboardPage() {
           `/notifications/in-app?identifier=${encodeURIComponent(actorIdentifier.trim())}&limit=40`,
         ),
       ]);
+
+      setCached("tw_members_" + tripId, memberData.members ?? []);
+      setCached("tw_expenses_" + tripId, expenseData.expenses ?? []);
+      setCached("tw_pending_" + tripId, pendingData.pendingExpenses ?? []);
+      setCached("tw_disputes_" + tripId, disputeData.disputes ?? []);
+      setCached("tw_settlement_" + tripId, settlementData.whoOwesWhom ?? []);
+      setCached("tw_reports_" + tripId, reportData.reports ?? []);
+      setCached("tw_notifications_init", notificationData.notifications ?? []);
 
       setMembers(memberData.members ?? []);
       setExpenses(expenseData.expenses ?? []);
@@ -642,8 +659,19 @@ export default function DashboardPage() {
     }
 
     try {
-      setLoading(true);
+      const tempExpense: ExpenseItem = {
+        expense_id: "temp_" + Date.now(),
+        description: expenseDescription.trim(),
+        amount: amount,
+        status: "approved",
+        split_type: splitTypeForApi,
+        created_at: new Date().toISOString()
+      };
+      setExpenses((prev) => [tempExpense, ...prev]);
+      setExpenseModalOpen(false);
+      setNotice("Expense added instantly!");
       setError("");
+      
       await fetchJson("/expenses/", {
         method: "POST",
         body: JSON.stringify({
@@ -656,13 +684,9 @@ export default function DashboardPage() {
           splits: splitsForApi,
         }),
       });
-      setExpenseModalOpen(false);
-      await loadTripDetails(selectedTripId);
-      setNotice("Expense added.");
+      void loadTripDetails(selectedTripId);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to add expense.");
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -678,28 +702,36 @@ export default function DashboardPage() {
       return;
     }
     try {
-      setLoading(true);
+      const tempExpense: ExpenseItem = {
+        expense_id: "temp_quick_" + Date.now(),
+        description: quickAddReason.trim(),
+        amount: amount,
+        status: "approved",
+        split_type: "equal",
+        created_at: new Date().toISOString()
+      };
+      setExpenses((prev) => [tempExpense, ...prev]);
+      const reasonCopy = quickAddReason.trim();
+      setQuickAddReason("");
+      setQuickAddAmount("");
+      setNotice("Quick expense added instantly!");
       setError("");
+
       await fetchJson("/expenses/", {
         method: "POST",
         body: JSON.stringify({
           trip_id: selectedTripId,
           actor_identifier: actorIdentifier.trim(),
           amount,
-          description: quickAddReason.trim(),
+          description: reasonCopy,
           split_type: "equal",
           paid_by: [{ member_id: quickAddPayerId, amount_paid: amount }],
           splits: [],
         }),
       });
-      setQuickAddReason("");
-      setQuickAddAmount("");
-      await loadTripDetails(selectedTripId);
-      setNotice("Quick expense added.");
+      void loadTripDetails(selectedTripId);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Quick add failed.");
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -931,18 +963,16 @@ export default function DashboardPage() {
       return;
     }
     try {
-      setLoading(true);
+      setPendingExpenses((prev) => prev.filter((item) => item.expense_id !== expenseId));
+      setNotice(`Expense ${action}d instantly!`);
       setError("");
       await fetchJson(`/expenses/${expenseId}/${action}`, {
         method: "POST",
         body: JSON.stringify({ admin_identifier: actorIdentifier.trim() }),
       });
-      await loadTripDetails(selectedTripId);
-      setNotice(`Expense ${action}d.`);
+      void loadTripDetails(selectedTripId);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : `Failed to ${action} expense.`);
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -984,7 +1014,8 @@ export default function DashboardPage() {
       return;
     }
     try {
-      setLoading(true);
+      setSettlementRows((prev) => prev.filter((r) => r !== row));
+      setNotice("Payment marked as paid instantly!");
       setError("");
       await fetchJson("/payments/mark-paid", {
         method: "POST",
@@ -997,12 +1028,9 @@ export default function DashboardPage() {
           method: payMethod,
         }),
       });
-      await loadTripDetails(selectedTripId);
-      setNotice("Payment marked as paid.");
+      void loadTripDetails(selectedTripId);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to mark payment.");
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -1371,8 +1399,8 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {error ? <p className="flash flash-error">{error}</p> : null}
-        {notice ? <p className="flash flash-ok">{notice}</p> : null}
+        {error ? <div className="os-toast" style={{ borderColor: "#FB7185", background: "rgba(24, 10, 15, 0.95)" }}><AlertIcon size={18} style={{ color: "#FB7185" }} /><span>{error}</span></div> : null}
+        {notice ? <div className="os-toast" style={{ borderColor: "var(--accent)" }}><CheckIcon size={18} style={{ color: "var(--accent)" }} /><span>{notice}</span></div> : null}
       </section>
 
       {profileModalOpen ? (

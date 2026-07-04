@@ -10,7 +10,7 @@ from app.services.payment_store import build_payment_store
 from app.services.realtime_service import realtime_service
 from app.services.trip_service import trip_service
 
-PAYMENT_METHODS = {"bank", "cash", "manual"}
+PAYMENT_METHODS = {"bank", "cash", "manual", "upi", "UPI"}
 
 
 class PaymentService:
@@ -31,7 +31,8 @@ class PaymentService:
             }
 
         pairwise = self._build_pairwise_obligations(trip_id=trip_id, approved_expenses=approved_expenses)
-        net_balances = self._collapse_to_net_balances(pairwise)
+        payments = self._store.list_payments(trip_id=trip_id)
+        net_balances = self._collapse_to_net_balances(pairwise, payments=payments)
         recommended = self._minimize_transactions(net_balances)
 
         return {
@@ -161,7 +162,7 @@ class PaymentService:
                 result.append({"fromMemberId": debtor, "toMemberId": creditor, "amount": round(amount, 2)})
         return result
 
-    def _collapse_to_net_balances(self, obligations: list[dict]) -> dict[str, float]:
+    def _collapse_to_net_balances(self, obligations: list[dict], payments: list | None = None) -> dict[str, float]:
         balances: dict[str, float] = {}
         for row in obligations:
             debtor = row["fromMemberId"]
@@ -169,6 +170,16 @@ class PaymentService:
             amount = float(row["amount"])
             balances[debtor] = balances.get(debtor, 0.0) - amount
             balances[creditor] = balances.get(creditor, 0.0) + amount
+        if payments:
+            for pay in payments:
+                status = getattr(pay, "status", None) or (pay.get("status") if isinstance(pay, dict) else None)
+                if status == "paid":
+                    payer = getattr(pay, "from_member_id", None) or (pay.get("from_member_id") if isinstance(pay, dict) else None)
+                    payee = getattr(pay, "to_member_id", None) or (pay.get("to_member_id") if isinstance(pay, dict) else None)
+                    amt = float(getattr(pay, "amount", 0) or (pay.get("amount", 0) if isinstance(pay, dict) else 0))
+                    if payer and payee:
+                        balances[payer] = balances.get(payer, 0.0) + amt
+                        balances[payee] = balances.get(payee, 0.0) - amt
         return balances
 
     def _minimize_transactions(self, balances: dict[str, float]) -> list[dict]:
