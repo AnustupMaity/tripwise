@@ -635,44 +635,62 @@ export default function TripsPage() {
             <article className="widget-card">
               <h2>Members</h2>
               {members.length === 0 ? <p className="empty-copy">No members found.</p> : null}
-              {members.map((member) => (
+              {members.map((member) => {
+                const isMe = Boolean(member.identifier && actorIdentifier && member.identifier.toLowerCase() === actorIdentifier.toLowerCase());
+                const amILeader = Boolean(selectedTrip?.my_role === "creator" || selectedTrip?.my_role === "admin" || members.some((m) => m.identifier?.toLowerCase() === actorIdentifier.toLowerCase() && (m.role === "creator" || m.role === "admin")));
+                const isPending = member.inviteStatus === "pending";
+
+                return (
                 <div key={member.memberId} className="row-card row-card-stack">
                   <div>
                     <strong>{memberTag(member)}</strong>
                     <p>{member.memberId}</p>
                   </div>
                   <div className="row-actions row-actions-wrap">
-                    <button
-                      className="tw-btn tw-btn-small"
-                      onClick={() => void onMemberAction(member.memberId, "accepted")}
-                      disabled={loading || member.inviteStatus === "accepted"}
-                    >
-                      Accept
-                    </button>
-                    <button
-                      className="tw-btn tw-btn-small tw-btn-muted"
-                      onClick={() => void onMemberAction(member.memberId, "rejected")}
-                      disabled={loading || member.inviteStatus === "rejected"}
-                    >
-                      Reject
-                    </button>
-                    <button
-                      className="tw-btn tw-btn-small tw-btn-muted"
-                      onClick={() => void onMemberAction(member.memberId, "reinvite")}
-                      disabled={loading}
-                    >
-                      Reinvite
-                    </button>
-                    <button
-                      className="tw-btn tw-btn-small tw-btn-muted"
-                      onClick={() => void onMemberAction(member.memberId, "remove")}
-                      disabled={loading}
-                    >
-                      Remove
-                    </button>
+                    {isMe && isPending ? (
+                      <>
+                        <button
+                          className="tw-btn tw-btn-small"
+                          onClick={() => void onMemberAction(member.memberId, "accepted")}
+                          disabled={loading}
+                        >
+                          Accept
+                        </button>
+                        <button
+                          className="tw-btn tw-btn-small tw-btn-muted"
+                          onClick={() => void onMemberAction(member.memberId, "rejected")}
+                          disabled={loading}
+                        >
+                          Reject
+                        </button>
+                      </>
+                    ) : null}
+                    {amILeader ? (
+                      <>
+                        {member.inviteStatus !== "accepted" ? (
+                          <button
+                            className="tw-btn tw-btn-small tw-btn-muted"
+                            onClick={() => void onMemberAction(member.memberId, "reinvite")}
+                            disabled={loading}
+                          >
+                            Reinvite
+                          </button>
+                        ) : null}
+                        {member.role !== "creator" && (!isMe || member.role !== "admin") ? (
+                          <button
+                            className="tw-btn tw-btn-small tw-btn-muted"
+                            onClick={() => void onMemberAction(member.memberId, "remove")}
+                            disabled={loading}
+                          >
+                            Remove
+                          </button>
+                        ) : null}
+                      </>
+                    ) : null}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </article>
           </div>
         </section>

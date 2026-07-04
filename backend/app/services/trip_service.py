@@ -412,9 +412,9 @@ class TripService:
         if actor_identifier:
             actor = self.resolve_member_for_identifier(trip_id=existing.trip_id, identifier=actor_identifier)
             if actor is None:
-                raise ValueError("actor is not an accepted trip member")
-            if actor["memberId"] != member_id and (actor["inviteStatus"] != "accepted" or actor["role"] != "admin"):
-                raise ValueError("only invitee or admin can respond")
+                raise ValueError("actor is not a trip member")
+            if actor["memberId"] != member_id:
+                raise ValueError("only the invitee can accept or reject their own invitation")
         if existing.invite_status == action:
             return {
                 "memberId": existing.member_id,

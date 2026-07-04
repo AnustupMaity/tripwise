@@ -292,13 +292,7 @@ export default function InviteCenterPage() {
               {selectedTrip ? ` in ${selectedTrip.name}` : ""}
             </p>
             <div className="row-actions row-actions-wrap top-gap">
-              <button className="tw-btn tw-btn-small" onClick={() => void runBulkAction("accepted")} disabled={loading || selectedMemberIds.length === 0}>
-                Bulk Accept
-              </button>
-              <button className="tw-btn tw-btn-small tw-btn-muted" onClick={() => void runBulkAction("rejected")} disabled={loading || selectedMemberIds.length === 0}>
-                Bulk Reject
-              </button>
-              <button className="tw-btn tw-btn-small tw-btn-muted" onClick={() => void runBulkAction("reinvite")} disabled={loading || selectedMemberIds.length === 0}>
+              <button className="tw-btn tw-btn-small" onClick={() => void runBulkAction("reinvite")} disabled={loading || selectedMemberIds.length === 0}>
                 Bulk Reinvite
               </button>
               <button className="tw-btn tw-btn-small tw-btn-muted" onClick={() => void runBulkAction("remove")} disabled={loading || selectedMemberIds.length === 0}>
