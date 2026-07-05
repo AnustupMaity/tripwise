@@ -12,6 +12,11 @@ Recently engineered with a state-of-the-art **Apple OS / Oxygen OS glassmorphic 
 
 ## 🌟 What's New: Next-Gen Architecture & UI
 
+### 📱 Progressive Web App (Mobile App)
+- **Native WebAPK Generation**: TripWise is fully PWA compliant. It can be installed directly from Google Chrome on Android as a native application without needing an App Store.
+- **Offline Capable Service Worker**: Uses `next-pwa` to aggressively cache static assets and network requests, ensuring the app loads instantly even on weak networks.
+- **Standalone Experience**: Hides the browser UI completely, features custom splash screens, and perfectly formatted OS icons (192x192 & 512x512).
+
 ### ⚡ 0ms SWR Caching & Synchronous Hydration
 - **Zero Blocking Spinners**: Route navigation and tab switching hydrate instantly in **0ms** from a synchronous local cache (`cache-store.ts`), eliminating UI lag and spinners.
 - **Optimistic UI Updates**: Adding expenses, reviewing approvals, and marking payments update the UI instantaneously in memory while syncing with the backend silently in the background.
@@ -34,6 +39,18 @@ Recently engineered with a state-of-the-art **Apple OS / Oxygen OS glassmorphic 
 ---
 
 ## 🚀 Quick Start & Run Commands
+
+### 📱 How to Install the Mobile App (Android)
+The easiest way to get the TripWise mobile app on your Android device:
+1. Open **Google Chrome** on your Android phone.
+2. Navigate to the live deployment URL (e.g., `https://tripwise-mu.vercel.app`).
+3. Tap the **Three Dots (⋮)** in the top right corner of Chrome.
+4. Tap **"Install app"** (or "Add to Home screen").
+5. Chrome will silently generate a native APK in the background and install TripWise directly into your app drawer!
+
+---
+
+### Local Development Setup
 
 Follow these exact commands to start the application locally in Windows PowerShell:
 
