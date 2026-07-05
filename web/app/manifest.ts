@@ -1,6 +1,6 @@
 import { MetadataRoute } from 'next'
 
-export default function manifest(): MetadataRoute.Manifest {
+export default function manifest(): any {
   return {
     name: 'TripWise',
     short_name: 'TripWise',
@@ -18,18 +18,25 @@ export default function manifest(): MetadataRoute.Manifest {
     categories: ['finance', 'travel', 'productivity'],
     related_applications: [],
     prefer_related_applications: false,
+    iarc_rating_id: 'e84b072d-71b3-4d3e-86ae-31a8ce4e53b7',
+    edge_side_panel: {
+      preferred_width: 400
+    },
+    launch_handler: {
+      client_mode: ['navigate-existing', 'auto']
+    },
     icons: [
       {
         src: '/icon-192x192.png',
         sizes: '192x192',
         type: 'image/png',
-        purpose: 'maskable',
+        purpose: 'any maskable',
       },
       {
         src: '/icon-512x512.png',
         sizes: '512x512',
         type: 'image/png',
-        purpose: 'maskable',
+        purpose: 'any maskable',
       },
       {
         src: '/icon',
@@ -50,7 +57,7 @@ export default function manifest(): MetadataRoute.Manifest {
         type: 'image/png',
         form_factor: 'narrow',
       },
-    ] as any,
+    ],
     shortcuts: [
       {
         name: 'Dashboard',
