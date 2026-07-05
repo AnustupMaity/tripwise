@@ -70,16 +70,23 @@ def create_trip(payload: CreateTripRequest, principal: SessionPrincipal = Depend
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+def trip_list_key(creator_identifier: str | None = None, principal: SessionPrincipal = None):
+    # Cache based purely on the identifier requested
+    identifier = creator_identifier.strip() if creator_identifier else (principal.email if principal else "")
+    return identifier
+
 @router.get("/")
-@cached(cache=trip_list_cache)
+@cached(cache=trip_list_cache, key=trip_list_key)
 def list_trips(creator_identifier: str | None = None, principal: SessionPrincipal = Depends(require_session)) -> dict:
     identifier = creator_identifier.strip() if creator_identifier else principal.email
     ensure_identifier_matches(principal, identifier, field_name="creator_identifier")
     return trip_service.list_trips(creator_identifier=identifier)
 
+def trip_member_key(trip_id: str):
+    return trip_id
 
 @router.get("/{trip_id}/members")
-@cached(cache=trip_member_cache)
+@cached(cache=trip_member_cache, key=trip_member_key)
 def list_trip_members(trip_id: str) -> dict:
     return trip_service.list_members(trip_id=trip_id)
 
