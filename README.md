@@ -169,3 +169,18 @@ SUPABASE_DB_URL=postgresql://user:password@host:port/dbname
 ├── supabase/                 # Database migrations and schema definitions
 └── docs/                     # Architectural diagrams and implementation notes
 ```
+
+---
+
+## 👨‍💻 Developer & Contact
+
+**Developed by:** Anustup Maity  
+**Contact:** [anustupmaity@gmail.com](mailto:anustupmaity@gmail.com)
+
+---
+
+## ⚖️ License & Copyright
+
+**Copyright (c) 2026 Anustup Maity. All Rights Reserved.**
+
+This project and its source code are **proprietary and confidential**. It is strictly **illegal** to copy, reproduce, distribute, or modify any part of this software, in source or compiled form, without explicit prior written permission from the developer. See the `LICENSE` file for more details.
