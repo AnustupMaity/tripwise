@@ -1,8 +1,8 @@
 # TripWise ✈️ — Lightning-Fast Group Expense Management
 
-[![Live on Vercel](https://img.shields.io/badge/Live%20on-Vercel-black?logo=vercel)](https://tripwise-liard.vercel.app)
-[![0ms Latency](https://img.shields.io/badge/UI%20Latency-0ms-38bdf8?style=flat&logo=speedtest)](https://tripwise-liard.vercel.app)
-[![Design System](https://img.shields.io/badge/UI-Apple%20OS%20%2F%20Oxygen%20OS-818cf8?style=flat)](https://tripwise-liard.vercel.app)
+[![Live on Vercel](https://img.shields.io/badge/Live%20on-Vercel-black?logo=vercel)](https://tripwise-mu.vercel.app)
+[![0ms Latency](https://img.shields.io/badge/UI%20Latency-0ms-38bdf8?style=flat&logo=speedtest)](https://tripwise-mu.vercel.app)
+[![Design System](https://img.shields.io/badge/UI-Apple%20OS%20%2F%20Oxygen%20OS-818cf8?style=flat)](https://tripwise-mu.vercel.app)
 
 **TripWise** is an industry-grade group trip expense management application designed for tracking shared costs, approvals, disputes, settlements, and reports. 
 
