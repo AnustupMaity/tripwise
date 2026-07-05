@@ -1,12 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from typing import Literal
+from cachetools import TTLCache, cached
 
 from app.api.dependencies import SessionPrincipal, ensure_identifier_matches, require_session
 from app.services.payment_service import payment_service
 from app.services.trip_service import trip_service
 
 router = APIRouter()
+
+# Caches for read-heavy operations
+trip_list_cache = TTLCache(maxsize=1000, ttl=300)
+trip_member_cache = TTLCache(maxsize=1000, ttl=300)
 
 
 class CreateTripRequest(BaseModel):
@@ -51,7 +56,7 @@ class UpdateMemberRoleRequest(BaseModel):
 def create_trip(payload: CreateTripRequest, principal: SessionPrincipal = Depends(require_session)) -> dict:
     ensure_identifier_matches(principal, payload.creator_identifier, field_name="creator_identifier")
     try:
-        return trip_service.create_trip(
+        result = trip_service.create_trip(
             trip_name=payload.name,
             creator_identifier=payload.creator_identifier,
             creator_name=payload.creator_name,
@@ -59,11 +64,14 @@ def create_trip(payload: CreateTripRequest, principal: SessionPrincipal = Depend
             creation_mode=payload.creation_mode,
             member_entries=payload.member_entries,
         )
+        trip_list_cache.clear()
+        return result
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/")
+@cached(cache=trip_list_cache)
 def list_trips(creator_identifier: str | None = None, principal: SessionPrincipal = Depends(require_session)) -> dict:
     identifier = creator_identifier.strip() if creator_identifier else principal.email
     ensure_identifier_matches(principal, identifier, field_name="creator_identifier")
@@ -71,6 +79,7 @@ def list_trips(creator_identifier: str | None = None, principal: SessionPrincipa
 
 
 @router.get("/{trip_id}/members")
+@cached(cache=trip_member_cache)
 def list_trip_members(trip_id: str) -> dict:
     return trip_service.list_members(trip_id=trip_id)
 
