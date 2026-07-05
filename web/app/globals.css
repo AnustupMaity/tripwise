@@ -573,11 +573,11 @@ body {
 
 .funnel-card {
   border-radius: 12px;
-  border: 1px solid #d6e0e8;
+  border: 1px solid var(--border-glass);
   padding: 0.65rem;
   display: grid;
   gap: 0.35rem;
-  background: #fff;
+  background: var(--paper);
 }
 
 .funnel-card p {
@@ -585,25 +585,28 @@ body {
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #365a71;
+  color: #99bed8;
   font-weight: 700;
 }
 
 .funnel-card strong {
   font-size: 1.5rem;
-  color: #132635;
+  color: var(--ink);
 }
 
 .funnel-card.pending {
-  background: linear-gradient(180deg, #fffaf0, #fff3d9);
+  background: linear-gradient(180deg, rgba(255,184,0,0.1), rgba(255,184,0,0.05));
+  border-color: rgba(255, 184, 0, 0.2);
 }
 
 .funnel-card.accepted {
-  background: linear-gradient(180deg, #f1fff8, #e6f7ef);
+  background: linear-gradient(180deg, rgba(0,240,255,0.1), rgba(0,240,255,0.05));
+  border-color: rgba(0, 240, 255, 0.2);
 }
 
 .funnel-card.rejected {
-  background: linear-gradient(180deg, #fff2f2, #fde7e7);
+  background: linear-gradient(180deg, rgba(255,80,80,0.1), rgba(255,80,80,0.05));
+  border-color: rgba(255, 80, 80, 0.2);
 }
 
 .invite-list {
@@ -759,10 +762,10 @@ body {
 }
 
 .section-box {
-  border: 1px solid #d9e3ea;
+  border: 1px solid var(--border-glass);
   border-radius: 12px;
   padding: 0.7rem;
-  background: #fcfeff;
+  background: var(--paper);
 }
 
 .composer-trip-box {
@@ -770,13 +773,13 @@ body {
 }
 
 .composer-trip-warning {
-  border-color: #e3b7b7;
-  background: #fff5f5;
+  border-color: rgba(255,80,80,0.3);
+  background: rgba(255,80,80,0.1);
 }
 
 .composer-warning-copy {
   margin: 0.35rem 0 0;
-  color: #8a2d2d;
+  color: #ffb3b3;
   font-weight: 700;
   font-size: 0.88rem;
 }

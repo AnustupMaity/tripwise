@@ -121,6 +121,7 @@ const EXPENSE_TEMPLATES: ExpenseTemplate[] = [
   { label: "Cab", description: "Cab ride" },
   { label: "Food", description: "Group meal" },
   { label: "Tickets", description: "Entry tickets" },
+  { label: "Others", description: "Miscellaneous expense" },
 ];
 
 const CURRENCIES = ["INR", "USD", "EUR", "GBP"];
