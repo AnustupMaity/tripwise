@@ -37,12 +37,7 @@ export default function manifest(): any {
         sizes: '512x512',
         type: 'image/png',
         purpose: 'any maskable',
-      },
-      {
-        src: '/icon',
-        sizes: 'any',
-        type: 'image/png',
-      },
+      }
     ],
     screenshots: [
       {
