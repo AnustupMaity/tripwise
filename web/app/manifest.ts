@@ -50,7 +50,7 @@ export default function manifest(): MetadataRoute.Manifest {
         type: 'image/png',
         form_factor: 'narrow',
       },
-    ],
+    ] as any,
     shortcuts: [
       {
         name: 'Dashboard',
