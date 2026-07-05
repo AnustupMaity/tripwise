@@ -23,6 +23,9 @@ playwright-report/
 # Environment
 .env
 .env.*
+upload_*.env
+upload_bd.env
+upload_fd.env
 !.env.example
 backend/.env
 web/.env
