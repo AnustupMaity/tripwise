@@ -739,10 +739,10 @@ body {
   width: min(920px, 96vw);
   max-height: 92vh;
   overflow: auto;
-  background: #fff;
+  background: var(--paper);
   border-radius: 16px;
   padding: 1rem;
-  border: 1px solid #d8e2ea;
+  border: 1px solid var(--border-glass);
   box-shadow: 0 30px 60px rgba(5, 10, 15, 0.5);
 }
 

@@ -325,6 +325,8 @@ export default function DashboardPage() {
         setSessionProfile(data);
         if (data.email) {
           setActorIdentifier(data.email);
+        } else if (data.phone) {
+          setActorIdentifier(data.phone);
         }
       } catch {
         // AppShell handles redirect for invalid sessions.
