@@ -94,13 +94,8 @@ export function AppShell({ children }: PropsWithChildren) {
       void validateProtectedSession();
     }
 
-    const intervalId = setInterval(() => {
-      void validateProtectedSession();
-    }, 5 * 60 * 1000);
-
     return () => {
       active = false;
-      clearInterval(intervalId);
     };
   }, [hideShell, pathname, router]);
 
